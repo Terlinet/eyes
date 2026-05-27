@@ -24,6 +24,9 @@ external void _setPoseCallback(JSFunction callback);
 @JS('captureFrame')
 external JSString _captureFrame();
 
+@JS('downloadImage')
+external void _downloadImage(JSString dataUrl, JSString filename);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const TerlineTEyesApp());
@@ -376,6 +379,13 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     }
   }
 
+  void _downloadLastPhoto() {
+    if (_lastPhoto != null) {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      _downloadImage(_lastPhoto!.toJS, "intrusao_$timestamp.jpg".toJS);
+    }
+  }
+
   @override
   void dispose() {
     _stopCamera();
@@ -457,24 +467,35 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
               if (_lastPhoto != null)
                 Positioned(
                   top: 100, right: 20,
-                  child: Container(
-                    width: 120, height: 90,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.red, width: 2),
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 10)],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: Stack(
-                        children: [
-                          Image.network(_lastPhoto!, fit: BoxFit.cover),
-                          Container(
-                            padding: const EdgeInsets.all(4),
-                            color: Colors.red,
-                            child: const Text("CAPTURADO", style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
+                  child: GestureDetector(
+                    onTap: _downloadLastPhoto,
+                    child: Container(
+                      width: 120, height: 90,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.red, width: 2),
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 10)],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Stack(
+                          children: [
+                            Image.network(_lastPhoto!, fit: BoxFit.cover, width: 120, height: 90),
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              color: Colors.red,
+                              child: const Text("CAPTURADO", style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                            ),
+                            Positioned(
+                              bottom: 4, right: 4,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                                child: const Icon(Icons.download, color: Colors.white, size: 16),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

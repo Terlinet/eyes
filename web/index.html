@@ -99,6 +99,13 @@
     };
 
     window.setPoseCallback = (callback) => { poseCallback = callback; };
+
+    window.downloadImage = (dataUrl, filename) => {
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = filename;
+      link.click();
+    };
   </script>
 </head>
 <body>

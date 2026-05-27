@@ -13,3 +13,6 @@ external void initPoseDetector();
 
 @JS('captureFrame')
 external String captureFrame();
+
+@JS('downloadImage')
+external void downloadImage(String dataUrl, String filename);
