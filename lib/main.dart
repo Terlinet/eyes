@@ -177,15 +177,24 @@ class _MonitorPageState extends State<MonitorPage> {
   }
 
   void _checkInvasion(List<dynamic> landmarks) {
-    if (landmarks.isEmpty || landmarks.length <= 24) return;
+    if (landmarks.isEmpty) return;
 
-    // Inverte o X por causa do espelhamento da câmera frontal
-    double midX = 1.0 - ((landmarks[23]['x'] + landmarks[24]['x']) / 2);
-    double midY = (landmarks[23]['y'] + landmarks[24]['y']) / 2;
+    bool anyPartInside = false;
 
-    Offset personPos = Offset(midX, midY);
+    for (var lm in landmarks) {
+      if (lm['visibility'] > 0.5) {
+        // Inverte o X por causa do espelhamento da câmera frontal
+        double x = 1.0 - (lm['x'] as num).toDouble();
+        double y = (lm['y'] as num).toDouble();
 
-    if (_isPointInPolygon(personPos, polygonNormalized)) {
+        if (_isPointInPolygon(Offset(x, y), polygonNormalized)) {
+          anyPartInside = true;
+          break;
+        }
+      }
+    }
+
+    if (anyPartInside) {
       _processAlert();
     }
   }
@@ -211,7 +220,11 @@ class _MonitorPageState extends State<MonitorPage> {
     try {
       final response = await http.post(
         Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/vision_alert"),
-        body: jsonEncode({"area_name": "Perímetro Alfa", "object_type": "pessoa"}),
+        body: jsonEncode({
+          "area_name": "Perímetro Alfa",
+          "object_type": "presença humana detectada",
+          "severity": "high"
+        }),
         headers: {"Content-Type": "application/json"},
       ).timeout(const Duration(seconds: 4));
 
@@ -220,10 +233,10 @@ class _MonitorPageState extends State<MonitorPage> {
         await _tts.speak(msg);
       }
     } catch (e) {
-      await _tts.speak("Acesso detectado na zona de segurança.");
+      await _tts.speak("Atenção! Identifique-se imediatamente. Você está em uma zona restrita. Qual o motivo da sua presença?");
     } finally {
       if (mounted) {
-        Future.delayed(const Duration(seconds: 2), () {
+        Future.delayed(const Duration(seconds: 3), () {
           if (mounted) setState(() => _isAlerting = false);
         });
       }
