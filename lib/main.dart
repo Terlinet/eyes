@@ -150,13 +150,21 @@ class _MonitorPageState extends State<MonitorPage> {
   @override
   void initState() {
     super.initState();
-    _initTts();
+    _initTts().then((_) => _speakIntroduction());
     _setupPoseDetection();
   }
 
   Future<void> _initTts() async {
     await _tts.setLanguage("pt-BR");
     await _tts.setSpeechRate(0.5);
+  }
+
+  Future<void> _speakIntroduction() async {
+    await _tts.speak(
+      "Bem-vindo ao TerlineT Eyes. Este sistema utiliza inteligência artificial para monitoramento de segurança em tempo real. "
+      "Ajuste o perímetro verde arrastando os círculos brancos para definir a zona restrita. "
+      "Qualquer presença humana detectada nesta área ativará um alerta imediato. O sistema está operacional."
+    );
   }
 
   Future<void> _setupPoseDetection() async {
