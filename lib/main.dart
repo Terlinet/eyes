@@ -13,7 +13,7 @@ void main() async {
   try {
     cameras = await availableCameras();
   } catch (e) {
-    print("Erro: $e");
+    debugPrint("Erro ao buscar câmeras: $e");
   }
   runApp(TerlineTEyesApp(cameras: cameras));
 }
@@ -46,6 +46,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late VideoPlayerController _controller;
+  bool _isError = false;
 
   @override
   void initState() {
@@ -56,6 +57,9 @@ class _HomePageState extends State<HomePage> {
         _controller.setVolume(0);
         _controller.play();
         setState(() {});
+      }).catchError((e) {
+        setState(() => _isError = true);
+        debugPrint("Erro no vídeo: $e");
       });
   }
 
@@ -71,7 +75,7 @@ class _HomePageState extends State<HomePage> {
       body: Stack(
         children: [
           SizedBox.expand(
-            child: _controller.value.isInitialized
+            child: !_isError && _controller.value.isInitialized
                 ? FittedBox(
                     fit: BoxFit.cover,
                     child: SizedBox(
@@ -101,14 +105,35 @@ class _HomePageState extends State<HomePage> {
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  onPressed: () => Navigator.push(
-                      context, MaterialPageRoute(builder: (context) => MonitorPage(cameras: widget.cameras))),
+                  onPressed: () {
+                    if (widget.cameras.isEmpty) {
+                      _showNoCameraDialog(context);
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => MonitorPage(cameras: widget.cameras))
+                      );
+                    }
+                  },
                   child: const Text("INICIAR SISTEMA",
                       style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _showNoCameraDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Câmera não detectada"),
+        content: const Text("Não conseguimos encontrar nenhuma câmera conectada ao seu dispositivo. Verifique as permissões do navegador ou a conexão do hardware."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))
         ],
       ),
     );
@@ -124,12 +149,13 @@ class MonitorPage extends StatefulWidget {
 }
 
 class _MonitorPageState extends State<MonitorPage> {
-  late CameraController _controller;
+  CameraController? _controller;
   final FlutterTts _tts = FlutterTts();
 
-  List<Offset> polygon = [
-    const Offset(100, 150), const Offset(300, 150),
-    const Offset(300, 450), const Offset(100, 450),
+  // Coordenadas normalizadas (0.0 a 1.0) para manter alinhamento em qualquer tela
+  List<Offset> polygonNormalized = [
+    const Offset(0.2, 0.2), const Offset(0.8, 0.2),
+    const Offset(0.8, 0.8), const Offset(0.2, 0.8),
   ];
 
   bool isAlerting = false;
@@ -139,12 +165,25 @@ class _MonitorPageState extends State<MonitorPage> {
   @override
   void initState() {
     super.initState();
-    _controller = CameraController(widget.cameras[0], ResolutionPreset.high);
-    _controller.initialize().then((_) {
+    if (widget.cameras.isNotEmpty) {
+      _initCamera();
+    }
+    _tts.setLanguage("pt-BR");
+  }
+
+  Future<void> _initCamera() async {
+    _controller = CameraController(
+      widget.cameras[0],
+      ResolutionPreset.high,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+    try {
+      await _controller!.initialize();
       if (!mounted) return;
       setState(() {});
-    });
-    _tts.setLanguage("pt-BR");
+    } catch (e) {
+      debugPrint("Erro ao inicializar câmera: $e");
+    }
   }
 
   bool _isPointInPolygon(Offset p, List<Offset> poly) {
@@ -159,8 +198,9 @@ class _MonitorPageState extends State<MonitorPage> {
   }
 
   Future<void> _processAlert() async {
-    if (DateTime.now().difference(lastAlertTime).inSeconds < 5) return;
-    lastAlertTime = DateTime.now();
+    final now = DateTime.now();
+    if (now.difference(lastAlertTime).inSeconds < 5) return;
+
     setState(() => isAlerting = true);
 
     try {
@@ -172,9 +212,11 @@ class _MonitorPageState extends State<MonitorPage> {
       if (response.statusCode == 200) {
         final msg = jsonDecode(response.body)['message'];
         await _tts.speak(msg);
+        lastAlertTime = DateTime.now(); // Atualiza apenas após sucesso
       }
     } catch (e) {
       await _tts.speak("Atenção! Movimentação detectada.");
+      lastAlertTime = DateTime.now();
     } finally {
       if (mounted) setState(() => isAlerting = false);
     }
@@ -182,13 +224,15 @@ class _MonitorPageState extends State<MonitorPage> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_controller.value.isInitialized) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -206,54 +250,68 @@ class _MonitorPageState extends State<MonitorPage> {
           )
         ],
       ),
-      body: Stack(
-        fit: StackFit.expand, // Força o preenchimento total
-        children: [
-          // 1. Câmera Full Screen REAL
-          FittedBox(
-            fit: BoxFit.cover,
-            child: SizedBox(
-              width: _controller.value.previewSize?.height ?? 1280,
-              height: _controller.value.previewSize?.width ?? 720,
-              child: CameraPreview(_controller),
-            ),
-          ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final size = constraints.biggest;
 
-          // 2. Camada de Interação e Desenho
-          GestureDetector(
-            onPanStart: (details) {
-              final pos = details.localPosition;
-              // 1. Tentar arrastar ponto
-              for (int i = 0; i < polygon.length; i++) {
-                if ((pos - polygon[i]).distance < 40) { // Raio maior para toque
-                  setState(() => _draggingIndex = i);
-                  return;
-                }
-              }
-              // 2. Se tocar dentro, simula detecção (para teste real agora)
-              if (_isPointInPolygon(pos, polygon)) {
-                _processAlert();
-              }
-            },
-            onPanUpdate: (details) {
-              if (_draggingIndex != null) {
-                setState(() => polygon[_draggingIndex!] = details.localPosition);
-              }
-            },
-            onPanEnd: (_) => setState(() => _draggingIndex = null),
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: PolygonPainter(polygon: polygon, isAlerting: isAlerting),
-            ),
-          ),
+          // Mapeia coordenadas normalizadas para pixels da tela
+          final polygonPixels = polygonNormalized.map((offset) {
+            return Offset(offset.dx * size.width, offset.dy * size.height);
+          }).toList();
 
-          const Positioned(
-            bottom: 20,
-            left: 20,
-            child: Text("Arraste os pontos para ajustar • Toque no meio para testar IA",
-              style: TextStyle(color: Colors.white, fontSize: 10, backgroundColor: Colors.black54)),
-          )
-        ],
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              // 1. Câmera Full Screen REAL (Corrigido proporção)
+              FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: _controller!.value.previewSize!.height, // Invertido para portrait se necessário
+                  height: _controller!.value.previewSize!.width,
+                  child: CameraPreview(_controller!),
+                ),
+              ),
+
+              // 2. Camada de Interação e Desenho
+              GestureDetector(
+                onPanStart: (details) {
+                  final pos = details.localPosition;
+                  for (int i = 0; i < polygonPixels.length; i++) {
+                    if ((pos - polygonPixels[i]).distance < 40) {
+                      setState(() => _draggingIndex = i);
+                      return;
+                    }
+                  }
+                  if (_isPointInPolygon(pos, polygonPixels)) {
+                    _processAlert();
+                  }
+                },
+                onPanUpdate: (details) {
+                  if (_draggingIndex != null) {
+                    setState(() {
+                      // Converte pixel de volta para normalizado, limitando entre 0 e 1
+                      double dx = (details.localPosition.dx / size.width).clamp(0.0, 1.0);
+                      double dy = (details.localPosition.dy / size.height).clamp(0.0, 1.0);
+                      polygonNormalized[_draggingIndex!] = Offset(dx, dy);
+                    });
+                  }
+                },
+                onPanEnd: (_) => setState(() => _draggingIndex = null),
+                child: CustomPaint(
+                  size: Size.infinite,
+                  painter: PolygonPainter(polygon: polygonPixels, isAlerting: isAlerting),
+                ),
+              ),
+
+              const Positioned(
+                bottom: 20,
+                left: 20,
+                child: Text("Arraste os pontos • Toque no meio para testar IA",
+                  style: TextStyle(color: Colors.white, fontSize: 10, backgroundColor: Colors.black54)),
+              )
+            ],
+          );
+        },
       ),
     );
   }
@@ -280,13 +338,11 @@ class PolygonPainter extends CustomPainter {
     canvas.drawPath(path, paint);
 
     for (var point in polygon) {
-      // Vértice externo
       canvas.drawCircle(point, 12, Paint()..color = Colors.white);
-      // Vértice interno (ponto de precisão)
       canvas.drawCircle(point, 4, Paint()..color = Colors.blue);
     }
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) => true;
+  bool shouldRepaint(PolygonPainter oldDelegate) => true;
 }
