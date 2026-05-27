@@ -169,13 +169,16 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
 
   Future<void> _initTts() async {
     await _tts.setLanguage("pt-BR");
-    await _tts.setSpeechRate(0.5);
+    await _tts.setSpeechRate(0.8); // Velocidade aumentada para ser dinâmica
+    await _tts.setPitch(1.0);
     _tts.setStartHandler(() => setState(() => _isSpeaking = true));
     _tts.setCompletionHandler(() => setState(() => _isSpeaking = false));
     _tts.setErrorHandler((msg) => setState(() => _isSpeaking = false));
   }
 
   Future<void> _speakIntroduction() async {
+    // Pequeno atraso para garantir que o usuário está pronto
+    await Future.delayed(const Duration(seconds: 2));
     await _tts.speak(
       "Bem-vindo ao TerlineT Eyes. Este sistema utiliza inteligência artificial para monitoramento de segurança em tempo real. "
       "Ajuste o perímetro verde arrastando os círculos brancos para definir a zona restrita. "
@@ -364,7 +367,29 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: _isSpeaking ? _buildCyberCube() : const SizedBox.shrink(),
+                  child: _isSpeaking
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildCyberCube(),
+                          const SizedBox(height: 20),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                            margin: const EdgeInsets.symmetric(horizontal: 40),
+                            decoration: BoxDecoration(
+                              color: Colors.black87,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: _isAlerting ? Colors.red : const Color(0xFF27AE60)),
+                            ),
+                            child: const Text(
+                              "TERLINET EYES: COMUNICANDO...",
+                              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      )
+                    : const SizedBox.shrink(),
                 ),
               ),
 
