@@ -224,6 +224,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   }
 
   Widget _buildCyberCube() {
+    final cubeColor = _isAlerting ? Colors.red : const Color(0xFF27AE60);
     return AnimatedBuilder(
       animation: Listenable.merge([_pulseController, _rotationController]),
       builder: (context, child) {
@@ -239,18 +240,22 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: const Color(0xFF27AE60).withOpacity(0.2),
-              border: Border.all(color: const Color(0xFF27AE60), width: 2),
+              color: cubeColor.withOpacity(0.2),
+              border: Border.all(color: cubeColor, width: 2),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF27AE60).withOpacity(0.5),
+                  color: cubeColor.withOpacity(0.5),
                   blurRadius: 15,
                   spreadRadius: 5,
                 ),
               ],
             ),
             child: Center(
-              child: Icon(Icons.auto_awesome, color: Colors.white.withOpacity(0.8), size: 20),
+              child: Icon(
+                _isAlerting ? Icons.warning_amber_rounded : Icons.auto_awesome,
+                color: Colors.white.withOpacity(0.8),
+                size: 20,
+              ),
             ),
           ),
         );
