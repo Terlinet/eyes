@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 import 'dart:convert';
 import 'dart:async';
-import 'dart:math';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +36,6 @@ class TerlineTEyesApp extends StatelessWidget {
   }
 }
 
-// --- TELA INICIAL COM VÍDEO BACKGROUND ---
 class HomePage extends StatefulWidget {
   final List<CameraDescription> cameras;
   const HomePage({super.key, required this.cameras});
@@ -55,7 +53,7 @@ class _HomePageState extends State<HomePage> {
     _controller = VideoPlayerController.asset("assets/videos/yees.mp4")
       ..initialize().then((_) {
         _controller.setLooping(true);
-        _controller.setVolume(0); // Mudo para permitir autoplay no navegador
+        _controller.setVolume(0);
         _controller.play();
         setState(() {});
       });
@@ -72,7 +70,6 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. Vídeo de Fundo
           SizedBox.expand(
             child: _controller.value.isInitialized
                 ? FittedBox(
@@ -85,11 +82,7 @@ class _HomePageState extends State<HomePage> {
                   )
                 : Container(color: Colors.black),
           ),
-
-          // 2. Overlay para escurecer o vídeo e destacar o texto
           Container(color: Colors.black.withOpacity(0.6)),
-
-          // 3. Conteúdo da Interface
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -98,10 +91,7 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 20),
                 Text("TERLINET EYES",
                     style: GoogleFonts.orbitron(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 10,
-                        color: Colors.white)),
+                        fontSize: 48, fontWeight: FontWeight.bold, letterSpacing: 10, color: Colors.white)),
                 const Text("SISTEMA DE MONITORAMENTO COM IA",
                     style: TextStyle(color: Colors.white54, letterSpacing: 5)),
                 const SizedBox(height: 60),
@@ -112,9 +102,7 @@ class _HomePageState extends State<HomePage> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => MonitorPage(cameras: widget.cameras))),
+                      context, MaterialPageRoute(builder: (context) => MonitorPage(cameras: widget.cameras))),
                   child: const Text("INICIAR SISTEMA",
                       style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
@@ -127,7 +115,6 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// --- TELA DE MONITORAMENTO ---
 class MonitorPage extends StatefulWidget {
   final List<CameraDescription> cameras;
   const MonitorPage({super.key, required this.cameras});
@@ -140,15 +127,14 @@ class _MonitorPageState extends State<MonitorPage> {
   late CameraController _controller;
   final FlutterTts _tts = FlutterTts();
 
-  // Geometria da Área de Detecção
   List<Offset> polygon = [
-    const Offset(100, 100), const Offset(400, 100),
-    const Offset(400, 400), const Offset(100, 400),
+    const Offset(100, 150), const Offset(300, 150),
+    const Offset(300, 450), const Offset(100, 450),
   ];
 
   bool isAlerting = false;
-  DateTime lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
   int? _draggingIndex;
+  DateTime lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
 
   @override
   void initState() {
@@ -157,21 +143,10 @@ class _MonitorPageState extends State<MonitorPage> {
     _controller.initialize().then((_) {
       if (!mounted) return;
       setState(() {});
-      _startDetectionLoop();
     });
     _tts.setLanguage("pt-BR");
   }
 
-  // Loop de Detecção Simulando MediaPipe (Para Web Integration)
-  void _startDetectionLoop() {
-    Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (!mounted) timer.cancel();
-      // Aqui o MediaPipe enviaria as coordenadas das pessoas detectadas
-      // Se detectado, chamamos _checkInvasion(pontoCentralPessoa)
-    });
-  }
-
-  // Lógica de Invasão (Ray Casting Algorithm)
   bool _isPointInPolygon(Offset p, List<Offset> poly) {
     bool inside = false;
     for (int i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -186,7 +161,6 @@ class _MonitorPageState extends State<MonitorPage> {
   Future<void> _processAlert() async {
     if (DateTime.now().difference(lastAlertTime).inSeconds < 5) return;
     lastAlertTime = DateTime.now();
-
     setState(() => isAlerting = true);
 
     try {
@@ -195,7 +169,6 @@ class _MonitorPageState extends State<MonitorPage> {
         body: jsonEncode({"area_name": "Web Zone", "object_type": "pessoa"}),
         headers: {"Content-Type": "application/json"},
       );
-
       if (response.statusCode == 200) {
         final msg = jsonDecode(response.body)['message'];
         await _tts.speak(msg);
@@ -218,9 +191,11 @@ class _MonitorPageState extends State<MonitorPage> {
     if (!_controller.value.isInitialized) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: Text("TERLINET EYES - LIVE FEED", style: GoogleFonts.orbitron(fontSize: 12)),
         backgroundColor: Colors.black,
+        elevation: 0,
         actions: [
           Center(
             child: Padding(
@@ -232,52 +207,51 @@ class _MonitorPageState extends State<MonitorPage> {
         ],
       ),
       body: Stack(
+        fit: StackFit.expand, // Força o preenchimento total
         children: [
-          // 1. Câmera Full Screen
-          SizedBox.expand(
-            child: FittedBox(
-              fit: BoxFit.cover,
-              child: SizedBox(
-                width: _controller.value.previewSize?.height ?? 1280,
-                height: _controller.value.previewSize?.width ?? 720,
-                child: CameraPreview(_controller),
-              ),
+          // 1. Câmera Full Screen REAL
+          FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: _controller.value.previewSize?.height ?? 1280,
+              height: _controller.value.previewSize?.width ?? 720,
+              child: CameraPreview(_controller),
             ),
           ),
 
-          // 2. Desenho do Polígono e Interação
+          // 2. Camada de Interação e Desenho
           GestureDetector(
             onPanStart: (details) {
-              // Verifica se o toque foi perto de algum vértice (raio de 30 para facilitar no celular)
+              final pos = details.localPosition;
+              // 1. Tentar arrastar ponto
               for (int i = 0; i < polygon.length; i++) {
-                if ((details.localPosition - polygon[i]).distance < 30) {
+                if ((pos - polygon[i]).distance < 40) { // Raio maior para toque
                   setState(() => _draggingIndex = i);
-                  break;
+                  return;
                 }
+              }
+              // 2. Se tocar dentro, simula detecção (para teste real agora)
+              if (_isPointInPolygon(pos, polygon)) {
+                _processAlert();
               }
             },
             onPanUpdate: (details) {
               if (_draggingIndex != null) {
-                setState(() {
-                  polygon[_draggingIndex!] = details.localPosition;
-                });
+                setState(() => polygon[_draggingIndex!] = details.localPosition);
               }
             },
-            onPanEnd: (details) {
-              setState(() => _draggingIndex = null);
-            },
+            onPanEnd: (_) => setState(() => _draggingIndex = null),
             child: CustomPaint(
               size: Size.infinite,
               painter: PolygonPainter(polygon: polygon, isAlerting: isAlerting),
             ),
           ),
 
-          // Instruções
           const Positioned(
             bottom: 20,
             left: 20,
-            child: Text("Perímetro de Elite Ativo • MediaPipe AI Enabled",
-              style: TextStyle(color: Colors.white54, fontSize: 10)),
+            child: Text("Arraste os pontos para ajustar • Toque no meio para testar IA",
+              style: TextStyle(color: Colors.white, fontSize: 10, backgroundColor: Colors.black54)),
           )
         ],
       ),
@@ -294,11 +268,11 @@ class PolygonPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = isAlerting ? Colors.red : Colors.green
-      ..strokeWidth = 3
+      ..strokeWidth = 4
       ..style = PaintingStyle.stroke;
 
     final fillPaint = Paint()
-      ..color = (isAlerting ? Colors.red : Colors.green).withOpacity(0.1)
+      ..color = (isAlerting ? Colors.red : Colors.green).withOpacity(0.15)
       ..style = PaintingStyle.fill;
 
     final path = Path()..addPolygon(polygon, true);
@@ -306,7 +280,10 @@ class PolygonPainter extends CustomPainter {
     canvas.drawPath(path, paint);
 
     for (var point in polygon) {
-      canvas.drawCircle(point, 6, Paint()..color = Colors.white);
+      // Vértice externo
+      canvas.drawCircle(point, 12, Paint()..color = Colors.white);
+      // Vértice interno (ponto de precisão)
+      canvas.drawCircle(point, 4, Paint()..color = Colors.blue);
     }
   }
 
