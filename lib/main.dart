@@ -13,7 +13,7 @@ import 'package:video_player/video_player.dart';
 external JSPromise<JSBoolean> _initPoseDetector();
 
 @JS('startCamera')
-external JSPromise<JSBoolean> _startCamera();
+external JSPromise<JSBoolean> _startCamera(JSString facingMode);
 
 @JS('stopCamera')
 external void _stopCamera();
@@ -141,6 +141,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   bool _isAlerting = false;
   bool _isSpeaking = false;
   bool _isGlitching = false;
+  bool _isFrontCamera = true;
   double _glitchX = 0;
   double _glitchY = 0;
   String _subtitle = "";
@@ -150,7 +151,6 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   late AnimationController _rotationController;
   DateTime _lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
 
-  // Coordenadas do polígono (Normalizadas 0.0 a 1.0)
   List<Offset> polygonNormalized = [
     const Offset(0.3, 0.2), const Offset(0.7, 0.2),
     const Offset(0.7, 0.8), const Offset(0.3, 0.8),
@@ -177,15 +177,14 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   Future<void> _initTts() async {
     await _tts.setLanguage("pt-BR");
     await _tts.setSpeechRate(0.8);
-    await _tts.setPitch(1.2); // Pitch levemente mais agudo para soar mais feminina
+    await _tts.setPitch(1.2);
 
-    // Tenta selecionar uma voz feminina disponível no sistema/navegador
     try {
       var voices = await _tts.getVoices;
       for (var voice in voices) {
         String name = voice["name"].toString().toLowerCase();
         if (name.contains("portuguese") || name.contains("brazil")) {
-          if (name.contains("female") || name.contains("feminina") || name.contains("maria") || name.contains("francisca") || name.contains("google pt-br")) {
+          if (name.contains("female") || name.contains("feminina") || name.contains("maria") || name.contains("google pt-br")) {
             await _tts.setVoice({"name": voice["name"], "locale": voice["locale"]});
             break;
           }
@@ -202,9 +201,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
 
   Future<void> _speakIntroduction() async {
     await Future.delayed(const Duration(seconds: 2));
-
     try {
-      // Busca a explicação dinâmica na IA do Groq
       final response = await http.get(
         Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/explain_system")
       ).timeout(const Duration(seconds: 5));
@@ -216,10 +213,8 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
         return;
       }
     } catch (e) {
-      debugPrint("Erro ao buscar intro da IA: $e");
+      debugPrint("Erro IA Intro: $e");
     }
-
-    // Fallback caso a rede falhe
     const fallback = "TerlineT Eyes operacional. Ajuste o perímetro para iniciar o monitoramento de elite.";
     _typeSubtitle(fallback);
     await _tts.speak(fallback);
@@ -239,10 +234,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
       if (charIndex < text.length) {
         setState(() {
           _subtitle += text[charIndex];
-          // Efeito de Glitch aleatório durante a digitação
-          if (math.Random().nextDouble() < 0.1) {
-            _triggerGlitch();
-          }
+          if (math.Random().nextDouble() < 0.1) _triggerGlitch();
         });
         charIndex++;
       } else {
@@ -257,15 +249,8 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
       _glitchX = (math.Random().nextDouble() - 0.5) * 10;
       _glitchY = (math.Random().nextDouble() - 0.5) * 5;
     });
-
     Future.delayed(const Duration(milliseconds: 50), () {
-      if (mounted) {
-        setState(() {
-          _isGlitching = false;
-          _glitchX = 0;
-          _glitchY = 0;
-        });
-      }
+      if (mounted) setState(() { _isGlitching = false; _glitchX = 0; _glitchY = 0; });
     });
   }
 
@@ -273,8 +258,16 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     _setPoseCallback(_onPoseDetected.toJS);
     final initSuccess = await _initPoseDetector().toDart;
     if (initSuccess.toDart) {
-      await _startCamera().toDart;
+      await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
     }
+  }
+
+  void _switchCamera() async {
+    setState(() {
+      _isFrontCamera = !_isFrontCamera;
+      _landmarks = []; // Limpa landmarks durante a troca
+    });
+    await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
   }
 
   void _onPoseDetected(JSString landmarksJson) {
@@ -290,11 +283,10 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     if (landmarks.isEmpty) return;
 
     bool anyPartInside = false;
-
     for (var lm in landmarks) {
       if (lm['visibility'] > 0.5) {
-        // Inverte o X por causa do espelhamento da câmera frontal
-        double x = 1.0 - (lm['x'] as num).toDouble();
+        // Se for câmera frontal, inverte o X. Se for traseira, usa direto.
+        double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
         double y = (lm['y'] as num).toDouble();
 
         if (_isPointInPolygon(Offset(x, y), polygonNormalized)) {
@@ -304,9 +296,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
       }
     }
 
-    if (anyPartInside) {
-      _processAlert();
-    }
+    if (anyPartInside) _processAlert();
   }
 
   Widget _buildCyberCube() {
@@ -316,33 +306,13 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
       builder: (context, child) {
         final pulse = 1.0 + (_pulseController.value * 0.2);
         return Transform(
-          transform: Matrix4.identity()
-            ..setEntry(3, 2, 0.002)
-            ..rotateX(_rotationController.value * 6.28)
-            ..rotateY(_rotationController.value * 6.28)
-            ..scale(pulse),
+          transform: Matrix4.identity()..setEntry(3, 2, 0.002)..rotateX(_rotationController.value * 6.28)..rotateY(_rotationController.value * 6.28)..scale(pulse),
           alignment: Alignment.center,
           child: Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: cubeColor.withOpacity(0.2),
-              border: Border.all(color: cubeColor, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: cubeColor.withOpacity(0.5),
-                  blurRadius: 15,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
-            child: Center(
-              child: Icon(
-                _isAlerting ? Icons.warning_amber_rounded : Icons.auto_awesome,
-                color: Colors.white.withOpacity(0.8),
-                size: 20,
-              ),
-            ),
+            width: 60, height: 60,
+            decoration: BoxDecoration(color: cubeColor.withOpacity(0.2), border: Border.all(color: cubeColor, width: 2),
+              boxShadow: [BoxShadow(color: cubeColor.withOpacity(0.5), blurRadius: 15, spreadRadius: 5)]),
+            child: Center(child: Icon(_isAlerting ? Icons.warning_amber_rounded : Icons.auto_awesome, color: Colors.white.withOpacity(0.8), size: 20)),
           ),
         );
       },
@@ -352,8 +322,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   bool _isPointInPolygon(Offset p, List<Offset> poly) {
     bool inside = false;
     for (int i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      if (((poly[i].dy > p.dy) != (poly[j].dy > p.dy)) &&
-          (p.dx < (poly[j].dx - poly[i].dx) * (p.dy - poly[i].dy) / (poly[j].dy - poly[i].dy) + poly[i].dx)) {
+      if (((poly[i].dy > p.dy) != (poly[j].dy > p.dy)) && (p.dx < (poly[j].dx - poly[i].dx) * (p.dy - poly[i].dy) / (poly[j].dy - poly[i].dy) + poly[i].dx)) {
         inside = !inside;
       }
     }
@@ -364,35 +333,22 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     final now = DateTime.now();
     if (now.difference(_lastAlertTime).inSeconds < 8) return;
     _lastAlertTime = now;
-
     setState(() => _isAlerting = true);
-
     try {
-      final response = await http.post(
-        Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/vision_alert"),
-        body: jsonEncode({
-          "area_name": "Perímetro Alfa",
-          "object_type": "presença humana detectada",
-          "severity": "high"
-        }),
-        headers: {"Content-Type": "application/json"},
-      ).timeout(const Duration(seconds: 4));
-
+      final response = await http.post(Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/vision_alert"),
+        body: jsonEncode({"area_name": "Perímetro Alfa", "object_type": "presença humana detectada", "severity": "high"}),
+        headers: {"Content-Type": "application/json"}).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final msg = jsonDecode(response.body)['message'];
         _typeSubtitle(msg);
         await _tts.speak(msg);
       }
     } catch (e) {
-      const errorMsg = "Atenção! Identifique-se imediatamente. Você está em uma zona restrita. Qual o motivo da sua presença?";
+      const errorMsg = "Atenção! Identifique-se imediatamente. Zona restrita.";
       _typeSubtitle(errorMsg);
       await _tts.speak(errorMsg);
     } finally {
-      if (mounted) {
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) setState(() => _isAlerting = false);
-        });
-      }
+      if (mounted) Future.delayed(const Duration(seconds: 3), () { if (mounted) setState(() => _isAlerting = false); });
     }
   }
 
@@ -414,24 +370,15 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
         builder: (context, constraints) {
           final size = constraints.biggest;
           final polygonPixels = polygonNormalized.map((offset) => Offset(offset.dx * size.width, offset.dy * size.height)).toList();
-
           return Stack(
             fit: StackFit.expand,
             children: [
-              if (_landmarks.isNotEmpty)
-                CustomPaint(
-                  painter: PosePainter(_landmarks),
-                  size: Size.infinite,
-                ),
-
+              if (_landmarks.isNotEmpty) CustomPaint(painter: PosePainter(_landmarks, _isFrontCamera), size: Size.infinite),
               GestureDetector(
                 onPanStart: (details) {
                   final pos = details.localPosition;
                   for (int i = 0; i < polygonPixels.length; i++) {
-                    if ((pos - polygonPixels[i]).distance < 50) {
-                      setState(() => _draggingIndex = i);
-                      return;
-                    }
+                    if ((pos - polygonPixels[i]).distance < 50) { setState(() => _draggingIndex = i); return; }
                   }
                 },
                 onPanUpdate: (details) {
@@ -444,100 +391,40 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
                   }
                 },
                 onPanEnd: (_) => setState(() => _draggingIndex = null),
-                child: CustomPaint(
-                  size: Size.infinite,
-                  painter: PolygonPainter(polygon: polygonPixels, isAlerting: _isAlerting),
-                ),
+                child: CustomPaint(size: Size.infinite, painter: PolygonPainter(polygon: polygonPixels, isAlerting: _isAlerting)),
               ),
-
               Positioned(
-                bottom: 100,
-                left: 0,
-                right: 0,
+                bottom: 100, left: 0, right: 0,
                 child: Center(
                   child: _isSpeaking
-                    ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildCyberCube(),
-                          const SizedBox(height: 20),
-                          Transform.translate(
-                            offset: Offset(_glitchX, _glitchY),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                              margin: const EdgeInsets.symmetric(horizontal: 40),
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: _isGlitching
-                                    ? (_isAlerting ? Colors.red.withOpacity(0.5) : const Color(0xFF27AE60).withOpacity(0.5))
-                                    : Colors.black87,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: _isAlerting ? Colors.red : const Color(0xFF27AE60),
-                                  width: _isGlitching ? 4 : 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: (_isAlerting ? Colors.red : const Color(0xFF27AE60)).withOpacity(0.3),
-                                    blurRadius: 10,
-                                    spreadRadius: 2,
-                                  ),
-                                  if (_isGlitching)
-                                    BoxShadow(
-                                      color: Colors.white.withOpacity(0.5),
-                                      blurRadius: 20,
-                                      offset: const Offset(5, 0),
-                                    ),
-                                ],
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    _isAlerting ? ">>> ALERTA DE INTRUSÃO <<<" : ">>> TERLINET EYES COMUNICAÇÃO <<<",
-                                    style: GoogleFonts.vt323(
-                                      color: _isAlerting ? Colors.red : const Color(0xFF27AE60),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      decoration: _isGlitching ? TextDecoration.lineThrough : null,
-                                    ),
-                                  ),
-                                  const Divider(color: Colors.white24),
-                                  Text(
-                                    _subtitle,
-                                    style: GoogleFonts.vt323(
-                                      color: _isGlitching ? Colors.cyanAccent : Colors.white,
-                                      fontSize: 18,
-                                      letterSpacing: 1.5,
-                                      shadows: _isGlitching ? [
-                                        const Shadow(color: Colors.red, offset: Offset(-2, 0)),
-                                        const Shadow(color: Colors.blue, offset: Offset(2, 0)),
-                                      ] : null,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            ),
+                    ? Column(mainAxisSize: MainAxisSize.min, children: [
+                        _buildCyberCube(),
+                        const SizedBox(height: 20),
+                        Transform.translate(offset: Offset(_glitchX, _glitchY),
+                          child: Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), margin: const EdgeInsets.symmetric(horizontal: 40), width: double.infinity,
+                            decoration: BoxDecoration(color: _isGlitching ? (_isAlerting ? Colors.red.withOpacity(0.5) : const Color(0xFF27AE60).withOpacity(0.5)) : Colors.black87,
+                              borderRadius: BorderRadius.circular(10), border: Border.all(color: _isAlerting ? Colors.red : const Color(0xFF27AE60), width: _isGlitching ? 4 : 1),
+                              boxShadow: [BoxShadow(color: (_isAlerting ? Colors.red : const Color(0xFF27AE60)).withOpacity(0.3), blurRadius: 10, spreadRadius: 2), if (_isGlitching) BoxShadow(color: Colors.white.withOpacity(0.5), blurRadius: 20, offset: const Offset(5, 0))]),
+                            child: Column(children: [
+                              Text(_isAlerting ? ">>> ALERTA DE INTRUSÃO <<<" : ">>> TERLINET EYES COMUNICAÇÃO <<<", style: GoogleFonts.vt323(color: _isAlerting ? Colors.red : const Color(0xFF27AE60), fontSize: 14, fontWeight: FontWeight.bold, decoration: _isGlitching ? TextDecoration.lineThrough : null)),
+                              const Divider(color: Colors.white24),
+                              Text(_subtitle, style: GoogleFonts.vt323(color: _isGlitching ? Colors.cyanAccent : Colors.white, fontSize: 18, letterSpacing: 1.5, shadows: _isGlitching ? [const Shadow(color: Colors.red, offset: Offset(-2, 0)), const Shadow(color: Colors.blue, offset: Offset(2, 0))] : null), textAlign: TextAlign.center),
+                            ]),
                           ),
-                        ],
-                      )
+                        ),
+                      ])
                     : const SizedBox.shrink(),
                 ),
               ),
-
               Positioned(
-                top: 40,
-                left: 20,
-                right: 20,
+                top: 40, left: 20, right: 20,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20), border: Border.all(color: _isAlerting ? Colors.red : Colors.green)),
-                      child: Text(_isAlerting ? "STATUS: ALERTA!" : "STATUS: SEGURO", style: TextStyle(color: _isAlerting ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
-                    ),
+                    IconButton(icon: const Icon(Icons.flip_camera_ios, color: Colors.white), onPressed: _switchCamera),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20), border: Border.all(color: _isAlerting ? Colors.red : Colors.green)),
+                      child: Text(_isAlerting ? "STATUS: ALERTA!" : "STATUS: SEGURO", style: TextStyle(color: _isAlerting ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12))),
                   ],
                 ),
               ),
@@ -551,14 +438,15 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
 
 class PosePainter extends CustomPainter {
   final List<dynamic> landmarks;
-  PosePainter(this.landmarks);
+  final bool isFrontCamera;
+  PosePainter(this.landmarks, this.isFrontCamera);
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = const Color(0xFF27AE60)..style = PaintingStyle.fill;
     for (var lm in landmarks) {
       if (lm['visibility'] > 0.5) {
-        double x = (1.0 - (lm['x'] as num).toDouble()) * size.width;
+        double x = isFrontCamera ? (1.0 - (lm['x'] as num).toDouble()) * size.width : (lm['x'] as num).toDouble() * size.width;
         double y = (lm['y'] as num).toDouble() * size.height;
         canvas.drawCircle(Offset(x, y), 4, paint);
       }
@@ -576,17 +464,11 @@ class PolygonPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = isAlerting ? Colors.red.withOpacity(0.8) : Colors.green.withOpacity(0.8)
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-
+    final paint = Paint()..color = isAlerting ? Colors.red.withOpacity(0.8) : Colors.green.withOpacity(0.8)..strokeWidth = 3..style = PaintingStyle.stroke;
     final fillPaint = Paint()..color = (isAlerting ? Colors.red : Colors.green).withOpacity(0.1)..style = PaintingStyle.fill;
-
     final path = Path()..addPolygon(polygon, true);
     canvas.drawPath(path, fillPaint);
     canvas.drawPath(path, paint);
-
     for (var point in polygon) {
       canvas.drawCircle(point, 12, Paint()..color = Colors.white);
       canvas.drawCircle(point, 6, Paint()..color = isAlerting ? Colors.red : Colors.green);

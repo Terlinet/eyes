@@ -10,15 +10,12 @@
   <meta property="og:image" content="previeweyes.png">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👁️</text></svg>">
 
-  <!-- MediaPipe Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 
   <style>
     body { background-color: #0F172A; margin: 0; overflow: hidden; }
-    /* Vídeo em Full Screen real atrás da interface Flutter */
     #pose-video {
-      transform: scaleX(-1);
       object-fit: cover;
       width: 100vw;
       height: 100vh;
@@ -27,30 +24,29 @@
       left: 0;
       z-index: 0;
     }
+    /* Classe para espelhar a câmera frontal */
+    .mirrored { transform: scaleX(-1); }
     flutter-view { z-index: 1; }
   </style>
 
   <script>
     let poseDetector;
-    let webcamRunning = false;
+    let cameraInstance = null;
     let videoElement;
     let poseCallback = null;
 
-    // Inicializa o MediaPipe
     window.initPoseDetector = () => {
       return new Promise((resolve, reject) => {
         try {
           poseDetector = new Pose({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
           });
-
           poseDetector.setOptions({
             modelComplexity: 1,
             smoothLandmarks: true,
             minDetectionConfidence: 0.5,
             minTrackingConfidence: 0.5
           });
-
           poseDetector.onResults((results) => {
             if (poseCallback && results.poseLandmarks) {
               poseCallback(JSON.stringify(results.poseLandmarks));
@@ -61,32 +57,47 @@
       });
     };
 
-    // Inicia a câmera e o processamento
-    window.startCamera = async () => {
-      videoElement = document.createElement("video");
-      videoElement.id = "pose-video";
-      videoElement.autoplay = true;
-      videoElement.muted = true;
-      videoElement.setAttribute("playsinline", "true");
-      document.body.appendChild(videoElement);
+    window.startCamera = async (facingMode) => {
+      if (cameraInstance) {
+        await cameraInstance.stop();
+      }
 
-      const camera = new Camera(videoElement, {
+      if (!videoElement) {
+        videoElement = document.createElement("video");
+        videoElement.id = "pose-video";
+        videoElement.autoplay = true;
+        videoElement.muted = true;
+        videoElement.setAttribute("playsinline", "true");
+        document.body.appendChild(videoElement);
+      }
+
+      // Aplica espelhamento apenas se for a câmera frontal (user)
+      if (facingMode === "user") {
+        videoElement.classList.add("mirrored");
+      } else {
+        videoElement.classList.remove("mirrored");
+      }
+
+      cameraInstance = new Camera(videoElement, {
         onFrame: async () => {
           if (poseDetector) await poseDetector.send({ image: videoElement });
         },
+        facingMode: facingMode,
         width: 1280,
         height: 720
       });
 
-      await camera.start();
-      webcamRunning = true;
+      await cameraInstance.start();
       return true;
     };
 
     window.stopCamera = () => {
+      if (cameraInstance) {
+        cameraInstance.stop();
+      }
       if (videoElement) {
         videoElement.remove();
-        webcamRunning = false;
+        videoElement = null;
       }
     };
 
