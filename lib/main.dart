@@ -1,13 +1,24 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:html' as html;
-import 'dart:ui_web' as ui;
+import 'dart:js_interop';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
-import 'services/js_bridge.dart' as bridge;
+
+// --- Ponte JS Interop ---
+@JS('initPoseDetector')
+external JSPromise<JSBoolean> _initPoseDetector();
+
+@JS('startCamera')
+external JSPromise<JSBoolean> _startCamera();
+
+@JS('stopCamera')
+external void _stopCamera();
+
+@JS('setPoseCallback')
+external void _setPoseCallback(JSFunction callback);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -125,12 +136,11 @@ class MonitorPage extends StatefulWidget {
 
 class _MonitorPageState extends State<MonitorPage> {
   final FlutterTts _tts = FlutterTts();
-  html.VideoElement? _videoElement;
   List<dynamic> _landmarks = [];
   bool _isAlerting = false;
   DateTime _lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
 
-  // Coordenadas do polígono (Baseadas na Tela)
+  // Coordenadas do polígono (Normalizadas 0.0 a 1.0)
   List<Offset> polygonNormalized = [
     const Offset(0.3, 0.2), const Offset(0.7, 0.2),
     const Offset(0.7, 0.8), const Offset(0.3, 0.8),
@@ -141,8 +151,7 @@ class _MonitorPageState extends State<MonitorPage> {
   void initState() {
     super.initState();
     _initTts();
-    _initCameraWeb();
-    _setupPoseCallback();
+    _setupPoseDetection();
   }
 
   Future<void> _initTts() async {
@@ -150,45 +159,34 @@ class _MonitorPageState extends State<MonitorPage> {
     await _tts.setSpeechRate(0.5);
   }
 
-  void _initCameraWeb() {
-    _videoElement = html.VideoElement()
-      ..id = 'pose-video'
-      ..autoplay = true
-      ..muted = true
-      ..setAttribute('playsinline', 'true');
-
-    html.document.body?.append(_videoElement!);
-
-    Future.delayed(const Duration(milliseconds: 500), () {
-      bridge.initMediaPipe('pose-video');
-    });
+  Future<void> _setupPoseDetection() async {
+    _setPoseCallback(_onPoseDetected.toJS);
+    final initSuccess = await _initPoseDetector().toDart;
+    if (initSuccess) {
+      await _startCamera().toDart;
+    }
   }
 
-  void _setupPoseCallback() {
-    bridge.setPoseCallback((landmarksJson) {
-      if (mounted) {
-        final List<dynamic> newLandmarks = jsonDecode(landmarksJson);
-        setState(() {
-          _landmarks = newLandmarks;
-        });
-        _checkInvasion(newLandmarks);
-      }
+  void _onPoseDetected(JSString landmarksJson) {
+    if (!mounted) return;
+    final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
+    setState(() {
+      _landmarks = newLandmarks;
     });
+    _checkInvasion(newLandmarks);
   }
 
   void _checkInvasion(List<dynamic> landmarks) {
-    if (landmarks.isEmpty) return;
+    if (landmarks.isEmpty || landmarks.length <= 24) return;
 
-    if (landmarks.length > 24) {
-      // IMPORTANTE: Inverter o X porque a câmera frontal é espelhada
-      double midX = 1.0 - ((landmarks[23]['x'] + landmarks[24]['x']) / 2);
-      double midY = (landmarks[23]['y'] + landmarks[24]['y']) / 2;
+    // Inverte o X por causa do espelhamento da câmera frontal
+    double midX = 1.0 - ((landmarks[23]['x'] + landmarks[24]['x']) / 2);
+    double midY = (landmarks[23]['y'] + landmarks[24]['y']) / 2;
 
-      Offset personPos = Offset(midX, midY);
+    Offset personPos = Offset(midX, midY);
 
-      if (_isPointInPolygon(personPos, polygonNormalized)) {
-        _processAlert();
-      }
+    if (_isPointInPolygon(personPos, polygonNormalized)) {
+      _processAlert();
     }
   }
 
@@ -234,8 +232,7 @@ class _MonitorPageState extends State<MonitorPage> {
 
   @override
   void dispose() {
-    _videoElement?.remove();
-    _videoElement = null;
+    _stopCamera();
     super.dispose();
   }
 
@@ -246,10 +243,7 @@ class _MonitorPageState extends State<MonitorPage> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final size = constraints.biggest;
-
-          final polygonPixels = polygonNormalized.map((offset) {
-            return Offset(offset.dx * size.width, offset.dy * size.height);
-          }).toList();
+          final polygonPixels = polygonNormalized.map((offset) => Offset(offset.dx * size.width, offset.dy * size.height)).toList();
 
           return Stack(
             fit: StackFit.expand,
@@ -293,25 +287,11 @@ class _MonitorPageState extends State<MonitorPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                    ),
+                    IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _isAlerting ? Colors.red : Colors.green),
-                      ),
-                      child: Text(
-                        _isAlerting ? "STATUS: ALERTA!" : "STATUS: SEGURO",
-                        style: TextStyle(
-                          color: _isAlerting ? Colors.red : Colors.green,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
+                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20), border: Border.all(color: _isAlerting ? Colors.red : Colors.green)),
+                      child: Text(_isAlerting ? "STATUS: ALERTA!" : "STATUS: SEGURO", style: TextStyle(color: _isAlerting ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
                     ),
                   ],
                 ),
@@ -330,12 +310,12 @@ class PosePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paintPoint = Paint()..color = const Color(0xFF27AE60)..style = PaintingStyle.fill;
-
+    final paint = Paint()..color = const Color(0xFF27AE60)..style = PaintingStyle.fill;
     for (var lm in landmarks) {
       if (lm['visibility'] > 0.5) {
-        // Inverte o X no desenho também para alinhar com o vídeo espelhado
-        canvas.drawCircle(Offset((1.0 - lm['x']) * size.width, lm['y'] * size.height), 4, paintPoint);
+        double x = (1.0 - (lm['x'] as num).toDouble()) * size.width;
+        double y = (lm['y'] as num).toDouble() * size.height;
+        canvas.drawCircle(Offset(x, y), 4, paint);
       }
     }
   }
@@ -356,9 +336,7 @@ class PolygonPainter extends CustomPainter {
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
 
-    final fillPaint = Paint()
-      ..color = (isAlerting ? Colors.red : Colors.green).withOpacity(0.1)
-      ..style = PaintingStyle.fill;
+    final fillPaint = Paint()..color = (isAlerting ? Colors.red : Colors.green).withOpacity(0.1)..style = PaintingStyle.fill;
 
     final path = Path()..addPolygon(polygon, true);
     canvas.drawPath(path, fillPaint);

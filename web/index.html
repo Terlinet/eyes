@@ -8,16 +8,15 @@
   <meta name="description" content="TerlineT Eyes - Sistema de Governança e Visão Computacional de Elite.">
   <meta property="og:title" content="TerlineT Eyes">
   <meta property="og:image" content="previeweyes.png">
-
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👁️</text></svg>">
 
-  <!-- MediaPipe Pose Scripts -->
+  <!-- MediaPipe Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 
   <style>
     body { background-color: #0F172A; margin: 0; overflow: hidden; }
-    /* Estilo para o vídeo injetado */
+    /* Vídeo em Full Screen real atrás da interface Flutter */
     #pose-video {
       transform: scaleX(-1);
       object-fit: cover;
@@ -26,52 +25,77 @@
       position: absolute;
       top: 0;
       left: 0;
-      z-index: 0; /* Fica na base */
+      z-index: 0;
     }
-    /* Garante que o Flutter fique por cima mas transparente */
-    flutter-view {
-      z-index: 1;
-    }
+    flutter-view { z-index: 1; }
   </style>
-</head>
-<body>
+
   <script>
+    let poseDetector;
+    let webcamRunning = false;
+    let videoElement;
     let poseCallback = null;
-    window.setPoseCallback = function(callback) {
-      poseCallback = callback;
+
+    // Inicializa o MediaPipe
+    window.initPoseDetector = () => {
+      return new Promise((resolve, reject) => {
+        try {
+          poseDetector = new Pose({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+          });
+
+          poseDetector.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+          });
+
+          poseDetector.onResults((results) => {
+            if (poseCallback && results.poseLandmarks) {
+              poseCallback(JSON.stringify(results.poseLandmarks));
+            }
+          });
+          resolve(true);
+        } catch (e) { reject(e); }
+      });
     };
 
-    window.initMediaPipe = function(videoId) {
-      const videoElement = document.getElementById(videoId);
-      if (!videoElement) return;
-
-      const pose = new Pose({locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-      }});
-
-      pose.setOptions({
-        modelComplexity: 1,
-        smoothLandmarks: true,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      });
-
-      pose.onResults((results) => {
-        if (poseCallback && results.poseLandmarks) {
-          poseCallback(JSON.stringify(results.poseLandmarks));
-        }
-      });
+    // Inicia a câmera e o processamento
+    window.startCamera = async () => {
+      videoElement = document.createElement("video");
+      videoElement.id = "pose-video";
+      videoElement.autoplay = true;
+      videoElement.muted = true;
+      videoElement.setAttribute("playsinline", "true");
+      document.body.appendChild(videoElement);
 
       const camera = new Camera(videoElement, {
         onFrame: async () => {
-          await pose.send({image: videoElement});
+          if (poseDetector) await poseDetector.send({ image: videoElement });
         },
         width: 1280,
         height: 720
       });
-      camera.start();
+
+      await camera.start();
+      webcamRunning = true;
+      return true;
+    };
+
+    window.stopCamera = () => {
+      if (videoElement) {
+        videoElement.remove();
+        webcamRunning = false;
+      }
+    };
+
+    window.setPoseCallback = (callback) => {
+      poseCallback = callback;
     };
   </script>
+</head>
+<body>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
