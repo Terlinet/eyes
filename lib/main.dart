@@ -150,24 +150,18 @@ class _MonitorPageState extends State<MonitorPage> {
   }
 
   void _initCameraWeb() {
-    final String viewId = 'pose-video-view';
+    // Injetando o vídeo diretamente no corpo do HTML para garantir visibilidade
+    _videoElement = html.VideoElement()
+      ..id = 'pose-video'
+      ..autoplay = true
+      ..muted = true
+      ..setAttribute('playsinline', 'true');
 
-    // ignore: undefined_prefixed_name
-    ui.platformViewRegistry.registerViewFactory(viewId, (int viewId) {
-      _videoElement = html.VideoElement()
-        ..id = 'pose-video'
-        ..autoplay = true
-        ..setAttribute('playsinline', 'true')
-        ..style.width = '100%'
-        ..style.height = '100%'
-        ..style.objectFit = 'cover';
+    html.document.body?.append(_videoElement!);
 
-      // Pequeno atraso para garantir que o elemento está no DOM antes de iniciar MediaPipe
-      Future.delayed(const Duration(milliseconds: 500), () {
-        bridge.initMediaPipe('pose-video');
-      });
-
-      return _videoElement!;
+    // Inicia MediaPipe
+    Future.delayed(const Duration(milliseconds: 500), () {
+      bridge.initMediaPipe('pose-video');
     });
   }
 
@@ -186,15 +180,13 @@ class _MonitorPageState extends State<MonitorPage> {
   void _checkInvasion(List<dynamic> landmarks) {
     if (landmarks.isEmpty) return;
 
-    // Ponto central aproximado (média do quadril)
-    // MediaPipe Pose: 23 (Hip Left), 24 (Hip Right)
     if (landmarks.length > 24) {
+      // Ponto central baseado no quadril (23 e 24)
       double midX = (landmarks[23]['x'] + landmarks[24]['x']) / 2;
       double midY = (landmarks[23]['y'] + landmarks[24]['y']) / 2;
 
-      // MediaPipe retorna X invertido na câmera frontal por padrão,
-      // mas no JS nós aplicamos transform: scaleX(-1).
-      // Landmarks do MediaPipe são normalizados 0.0 a 1.0.
+      // No MediaPipe Web, X é invertido na visualização, mas as coordenadas
+      // seguem o padrão 0.0 a 1.0.
       Offset personPos = Offset(midX, midY);
 
       if (_isPointInPolygon(personPos, polygonNormalized)) {
@@ -245,15 +237,15 @@ class _MonitorPageState extends State<MonitorPage> {
 
   @override
   void dispose() {
-    _videoElement?.pause();
-    _videoElement?.srcObject?.getTracks().forEach((track) => track.stop());
+    _videoElement?.remove(); // Remove o vídeo do corpo do HTML ao sair
+    _videoElement = null;
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent, // Importante: Deixar transparente para ver o vídeo atrás
       body: LayoutBuilder(
         builder: (context, constraints) {
           final size = constraints.biggest;
@@ -265,8 +257,7 @@ class _MonitorPageState extends State<MonitorPage> {
           return Stack(
             fit: StackFit.expand,
             children: [
-              const HtmlElementView(viewType: 'pose-video-view'),
-
+              // O vídeo está no fundo (DOM), desenhamos o esqueleto por cima
               if (_landmarks.isNotEmpty)
                 CustomPaint(
                   painter: PosePainter(_landmarks),
@@ -277,7 +268,7 @@ class _MonitorPageState extends State<MonitorPage> {
                 onPanStart: (details) {
                   final pos = details.localPosition;
                   for (int i = 0; i < polygonPixels.length; i++) {
-                    if ((pos - polygonPixels[i]).distance < 45) {
+                    if ((pos - polygonPixels[i]).distance < 50) {
                       setState(() => _draggingIndex = i);
                       return;
                     }
@@ -343,13 +334,12 @@ class PosePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paintPoint = Paint()..color = Colors.blue.withOpacity(0.5)..style = PaintingStyle.fill;
-    final paintLine = Paint()..color = Colors.white.withOpacity(0.3)..strokeWidth = 2;
+    final paintPoint = Paint()..color = const Color(0xFF27AE60)..style = PaintingStyle.fill;
 
     for (var lm in landmarks) {
       if (lm['visibility'] > 0.5) {
-        // Landmarks do MediaPipe vêm em escala 0-1
-        canvas.drawCircle(Offset(lm['x'] * size.width, lm['y'] * size.height), 3, paintPoint);
+        // Mapeia coordenadas 0-1 para o tamanho da tela
+        canvas.drawCircle(Offset(lm['x'] * size.width, lm['y'] * size.height), 4, paintPoint);
       }
     }
   }
@@ -379,8 +369,8 @@ class PolygonPainter extends CustomPainter {
     canvas.drawPath(path, paint);
 
     for (var point in polygon) {
-      canvas.drawCircle(point, 10, Paint()..color = Colors.white);
-      canvas.drawCircle(point, 5, Paint()..color = isAlerting ? Colors.red : Colors.green);
+      canvas.drawCircle(point, 12, Paint()..color = Colors.white);
+      canvas.drawCircle(point, 6, Paint()..color = isAlerting ? Colors.red : Colors.green);
     }
   }
 
