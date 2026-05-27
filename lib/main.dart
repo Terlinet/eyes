@@ -176,21 +176,53 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
 
   Future<void> _initTts() async {
     await _tts.setLanguage("pt-BR");
-    await _tts.setSpeechRate(0.8); // Velocidade aumentada para ser dinâmica
-    await _tts.setPitch(1.0);
+    await _tts.setSpeechRate(0.8);
+    await _tts.setPitch(1.2); // Pitch levemente mais agudo para soar mais feminina
+
+    // Tenta selecionar uma voz feminina disponível no sistema/navegador
+    try {
+      var voices = await _tts.getVoices;
+      for (var voice in voices) {
+        String name = voice["name"].toString().toLowerCase();
+        if (name.contains("portuguese") || name.contains("brazil")) {
+          if (name.contains("female") || name.contains("feminina") || name.contains("maria") || name.contains("francisca") || name.contains("google pt-br")) {
+            await _tts.setVoice({"name": voice["name"], "locale": voice["locale"]});
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Erro ao buscar vozes: $e");
+    }
+
     _tts.setStartHandler(() => setState(() => _isSpeaking = true));
     _tts.setCompletionHandler(() => setState(() => _isSpeaking = false));
     _tts.setErrorHandler((msg) => setState(() => _isSpeaking = false));
   }
 
   Future<void> _speakIntroduction() async {
-    // Pequeno atraso para garantir que o usuário está pronto
     await Future.delayed(const Duration(seconds: 2));
-    const text = "Bem-vindo ao TerlineT Eyes. Este sistema utiliza inteligência artificial para monitoramento de segurança em tempo real. "
-      "Ajuste o perímetro verde arrastando os círculos brancos para definir a zona restrita. "
-      "Qualquer presença humana detectada nesta área ativará um alerta imediato. O sistema está operacional.";
-    _typeSubtitle(text);
-    await _tts.speak(text);
+
+    try {
+      // Busca a explicação dinâmica na IA do Groq
+      final response = await http.get(
+        Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/explain_system")
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final text = jsonDecode(response.body)['message'];
+        _typeSubtitle(text);
+        await _tts.speak(text);
+        return;
+      }
+    } catch (e) {
+      debugPrint("Erro ao buscar intro da IA: $e");
+    }
+
+    // Fallback caso a rede falhe
+    const fallback = "TerlineT Eyes operacional. Ajuste o perímetro para iniciar o monitoramento de elite.";
+    _typeSubtitle(fallback);
+    await _tts.speak(fallback);
   }
 
   void _typeSubtitle(String text) {
