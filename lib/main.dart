@@ -157,6 +157,10 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   Timer? _glitchTimer;
   late AnimationController _pulseController;
   late AnimationController _rotationController;
+  bool _isSwitchingCamera = false;
+  bool _isMonitoringActive = false;
+  int _countdown = 0;
+  Timer? _countdownTimer;
   DateTime _lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
 
   List<Offset> polygonNormalized = [
@@ -271,11 +275,20 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   }
 
   void _switchCamera() async {
+    if (_isSwitchingCamera) return;
     setState(() {
+      _isSwitchingCamera = true;
       _isFrontCamera = !_isFrontCamera;
       _landmarks = []; // Limpa landmarks durante a troca
     });
-    await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
+
+    try {
+      await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
+    } catch (e) {
+      debugPrint("Erro ao trocar câmera: $e");
+    } finally {
+      if (mounted) setState(() => _isSwitchingCamera = false);
+    }
   }
 
   void _onPoseDetected(JSString landmarksJson) {
@@ -287,8 +300,35 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     _checkInvasion(newLandmarks);
   }
 
+  void _startMonitoring() {
+    if (_isMonitoringActive || _countdown > 0) return;
+
+    setState(() {
+      _countdown = 5;
+    });
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        if (_countdown > 1) {
+          _countdown--;
+          _tts.speak(_countdown.toString());
+        } else {
+          _countdown = 0;
+          _isMonitoringActive = true;
+          timer.cancel();
+          _tts.speak("Sistema de monitoramento ativado. Perímetro seguro.");
+          _typeSubtitle("SISTEMA DE MONITORAMENTO ATIVADO");
+        }
+      });
+    });
+  }
+
   void _checkInvasion(List<dynamic> landmarks) {
-    if (landmarks.isEmpty) return;
+    if (!_isMonitoringActive || landmarks.isEmpty) return;
 
     bool anyPartInside = false;
     for (var lm in landmarks) {
@@ -393,6 +433,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     _rotationController.dispose();
     _typewriterTimer?.cancel();
     _glitchTimer?.cancel();
+    _countdownTimer?.cancel();
     super.dispose();
   }
 
@@ -456,12 +497,34 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)),
-                    IconButton(icon: const Icon(Icons.flip_camera_ios, color: Colors.white), onPressed: _switchCamera),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20), border: Border.all(color: _isAlerting ? Colors.red : Colors.green)),
-                      child: Text(_isAlerting ? "STATUS: ALERTA!" : "STATUS: SEGURO", style: TextStyle(color: _isAlerting ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12))),
+                    Row(
+                      children: [
+                        if (!_isMonitoringActive && _countdown == 0)
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF27AE60), foregroundColor: Colors.white),
+                            onPressed: _startMonitoring,
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text("INICIAR MONITORAMENTO"),
+                          ),
+                        const SizedBox(width: 10),
+                        IconButton(icon: const Icon(Icons.flip_camera_ios, color: Colors.white), onPressed: _isSwitchingCamera ? null : _switchCamera),
+                      ],
+                    ),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20), border: Border.all(color: _isAlerting ? Colors.red : (_isSwitchingCamera ? Colors.orange : (_isMonitoringActive ? Colors.green : Colors.grey)))),
+                      child: Text(_isAlerting ? "STATUS: ALERTA!" : (_isSwitchingCamera ? "TROCANDO CÂMERA..." : (!_isMonitoringActive ? (_countdown > 0 ? "INICIANDO EM $_countdown..." : "STATUS: STANDBY") : "STATUS: SEGURO")), style: TextStyle(color: _isAlerting ? Colors.red : (_isSwitchingCamera ? Colors.orange : (_isMonitoringActive ? Colors.green : Colors.grey)), fontWeight: FontWeight.bold, fontSize: 12))),
                   ],
                 ),
               ),
+
+              // Overlay de Countdown
+              if (_countdown > 0)
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(40),
+                    decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle, border: Border.all(color: const Color(0xFF27AE60), width: 2)),
+                    child: Text("$_countdown", style: GoogleFonts.orbitron(color: Colors.white, fontSize: 80, fontWeight: FontWeight.bold)),
+                  ),
+                ),
 
               // Thumbnail da última foto capturada
               if (_lastPhoto != null)
