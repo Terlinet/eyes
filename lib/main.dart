@@ -139,8 +139,12 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   List<dynamic> _landmarks = [];
   bool _isAlerting = false;
   bool _isSpeaking = false;
+  bool _isGlitching = false;
+  double _glitchX = 0;
+  double _glitchY = 0;
   String _subtitle = "";
   Timer? _typewriterTimer;
+  Timer? _glitchTimer;
   late AnimationController _pulseController;
   late AnimationController _rotationController;
   DateTime _lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
@@ -190,9 +194,11 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
 
   void _typeSubtitle(String text) {
     _typewriterTimer?.cancel();
+    _glitchTimer?.cancel();
     setState(() {
       _subtitle = "";
       _isSpeaking = true;
+      _isGlitching = false;
     });
 
     int charIndex = 0;
@@ -200,10 +206,32 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
       if (charIndex < text.length) {
         setState(() {
           _subtitle += text[charIndex];
+          // Efeito de Glitch aleatório durante a digitação
+          if (math.Random().nextDouble() < 0.1) {
+            _triggerGlitch();
+          }
         });
         charIndex++;
       } else {
         timer.cancel();
+      }
+    });
+  }
+
+  void _triggerGlitch() {
+    setState(() {
+      _isGlitching = true;
+      _glitchX = (math.Random().nextDouble() - 0.5) * 10;
+      _glitchY = (math.Random().nextDouble() - 0.5) * 5;
+    });
+
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        setState(() {
+          _isGlitching = false;
+          _glitchX = 0;
+          _glitchY = 0;
+        });
       }
     });
   }
@@ -341,6 +369,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     _pulseController.dispose();
     _rotationController.dispose();
     _typewriterTimer?.cancel();
+    _glitchTimer?.cancel();
     super.dispose();
   }
 
@@ -399,43 +428,62 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
                         children: [
                           _buildCyberCube(),
                           const SizedBox(height: 20),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                            margin: const EdgeInsets.symmetric(horizontal: 40),
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: Colors.black87,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: _isAlerting ? Colors.red : const Color(0xFF27AE60)),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: (_isAlerting ? Colors.red : const Color(0xFF27AE60)).withOpacity(0.3),
-                                  blurRadius: 10,
-                                  spreadRadius: 2,
+                          Transform.translate(
+                            offset: Offset(_glitchX, _glitchY),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              margin: const EdgeInsets.symmetric(horizontal: 40),
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: _isGlitching
+                                    ? (_isAlerting ? Colors.red.withOpacity(0.5) : const Color(0xFF27AE60).withOpacity(0.5))
+                                    : Colors.black87,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: _isAlerting ? Colors.red : const Color(0xFF27AE60),
+                                  width: _isGlitching ? 4 : 1,
                                 ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                Text(
-                                  _isAlerting ? ">>> ALERTA DE INTRUSÃO <<<" : ">>> TERLINET EYES COMUNICAÇÃO <<<",
-                                  style: GoogleFonts.vt323(
-                                    color: _isAlerting ? Colors.red : const Color(0xFF27AE60),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (_isAlerting ? Colors.red : const Color(0xFF27AE60)).withOpacity(0.3),
+                                    blurRadius: 10,
+                                    spreadRadius: 2,
                                   ),
-                                ),
-                                const Divider(color: Colors.white24),
-                                Text(
-                                  _subtitle,
-                                  style: GoogleFonts.vt323(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    letterSpacing: 1.5,
+                                  if (_isGlitching)
+                                    BoxShadow(
+                                      color: Colors.white.withOpacity(0.5),
+                                      blurRadius: 20,
+                                      offset: const Offset(5, 0),
+                                    ),
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    _isAlerting ? ">>> ALERTA DE INTRUSÃO <<<" : ">>> TERLINET EYES COMUNICAÇÃO <<<",
+                                    style: GoogleFonts.vt323(
+                                      color: _isAlerting ? Colors.red : const Color(0xFF27AE60),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      decoration: _isGlitching ? TextDecoration.lineThrough : null,
+                                    ),
                                   ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
+                                  const Divider(color: Colors.white24),
+                                  Text(
+                                    _subtitle,
+                                    style: GoogleFonts.vt323(
+                                      color: _isGlitching ? Colors.cyanAccent : Colors.white,
+                                      fontSize: 18,
+                                      letterSpacing: 1.5,
+                                      shadows: _isGlitching ? [
+                                        const Shadow(color: Colors.red, offset: Offset(-2, 0)),
+                                        const Shadow(color: Colors.blue, offset: Offset(2, 0)),
+                                      ] : null,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
