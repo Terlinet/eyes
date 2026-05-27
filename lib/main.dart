@@ -134,10 +134,13 @@ class MonitorPage extends StatefulWidget {
   State<MonitorPage> createState() => _MonitorPageState();
 }
 
-class _MonitorPageState extends State<MonitorPage> {
+class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin {
   final FlutterTts _tts = FlutterTts();
   List<dynamic> _landmarks = [];
   bool _isAlerting = false;
+  bool _isSpeaking = false;
+  late AnimationController _pulseController;
+  late AnimationController _rotationController;
   DateTime _lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
 
   // Coordenadas do polígono (Normalizadas 0.0 a 1.0)
@@ -150,6 +153,16 @@ class _MonitorPageState extends State<MonitorPage> {
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    )..repeat(reverse: true);
+
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    )..repeat();
+
     _initTts().then((_) => _speakIntroduction());
     _setupPoseDetection();
   }
@@ -157,6 +170,9 @@ class _MonitorPageState extends State<MonitorPage> {
   Future<void> _initTts() async {
     await _tts.setLanguage("pt-BR");
     await _tts.setSpeechRate(0.5);
+    _tts.setStartHandler(() => setState(() => _isSpeaking = true));
+    _tts.setCompletionHandler(() => setState(() => _isSpeaking = false));
+    _tts.setErrorHandler((msg) => setState(() => _isSpeaking = false));
   }
 
   Future<void> _speakIntroduction() async {
@@ -207,6 +223,41 @@ class _MonitorPageState extends State<MonitorPage> {
     }
   }
 
+  Widget _buildCyberCube() {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_pulseController, _rotationController]),
+      builder: (context, child) {
+        final pulse = 1.0 + (_pulseController.value * 0.2);
+        return Transform(
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.002)
+            ..rotateX(_rotationController.value * 6.28)
+            ..rotateY(_rotationController.value * 6.28)
+            ..scale(pulse),
+          alignment: Alignment.center,
+          child: Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: const Color(0xFF27AE60).withOpacity(0.2),
+              border: Border.all(color: const Color(0xFF27AE60), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF27AE60).withOpacity(0.5),
+                  blurRadius: 15,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Center(
+              child: Icon(Icons.auto_awesome, color: Colors.white.withOpacity(0.8), size: 20),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   bool _isPointInPolygon(Offset p, List<Offset> poly) {
     bool inside = false;
     for (int i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -254,6 +305,8 @@ class _MonitorPageState extends State<MonitorPage> {
   @override
   void dispose() {
     _stopCamera();
+    _pulseController.dispose();
+    _rotationController.dispose();
     super.dispose();
   }
 
@@ -298,6 +351,15 @@ class _MonitorPageState extends State<MonitorPage> {
                 child: CustomPaint(
                   size: Size.infinite,
                   painter: PolygonPainter(polygon: polygonPixels, isAlerting: _isAlerting),
+                ),
+              ),
+
+              Positioned(
+                bottom: 100,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _isSpeaking ? _buildCyberCube() : const SizedBox.shrink(),
                 ),
               ),
 
