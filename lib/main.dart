@@ -139,6 +139,8 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   List<dynamic> _landmarks = [];
   bool _isAlerting = false;
   bool _isSpeaking = false;
+  String _subtitle = "";
+  Timer? _typewriterTimer;
   late AnimationController _pulseController;
   late AnimationController _rotationController;
   DateTime _lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
@@ -179,11 +181,31 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   Future<void> _speakIntroduction() async {
     // Pequeno atraso para garantir que o usuário está pronto
     await Future.delayed(const Duration(seconds: 2));
-    await _tts.speak(
-      "Bem-vindo ao TerlineT Eyes. Este sistema utiliza inteligência artificial para monitoramento de segurança em tempo real. "
+    const text = "Bem-vindo ao TerlineT Eyes. Este sistema utiliza inteligência artificial para monitoramento de segurança em tempo real. "
       "Ajuste o perímetro verde arrastando os círculos brancos para definir a zona restrita. "
-      "Qualquer presença humana detectada nesta área ativará um alerta imediato. O sistema está operacional."
-    );
+      "Qualquer presença humana detectada nesta área ativará um alerta imediato. O sistema está operacional.";
+    _typeSubtitle(text);
+    await _tts.speak(text);
+  }
+
+  void _typeSubtitle(String text) {
+    _typewriterTimer?.cancel();
+    setState(() {
+      _subtitle = "";
+      _isSpeaking = true;
+    });
+
+    int charIndex = 0;
+    _typewriterTimer = Timer.periodic(const Duration(milliseconds: 30), (timer) {
+      if (charIndex < text.length) {
+        setState(() {
+          _subtitle += text[charIndex];
+        });
+        charIndex++;
+      } else {
+        timer.cancel();
+      }
+    });
   }
 
   Future<void> _setupPoseDetection() async {
@@ -297,10 +319,13 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
 
       if (response.statusCode == 200) {
         final msg = jsonDecode(response.body)['message'];
+        _typeSubtitle(msg);
         await _tts.speak(msg);
       }
     } catch (e) {
-      await _tts.speak("Atenção! Identifique-se imediatamente. Você está em uma zona restrita. Qual o motivo da sua presença?");
+      const errorMsg = "Atenção! Identifique-se imediatamente. Você está em uma zona restrita. Qual o motivo da sua presença?";
+      _typeSubtitle(errorMsg);
+      await _tts.speak(errorMsg);
     } finally {
       if (mounted) {
         Future.delayed(const Duration(seconds: 3), () {
@@ -315,6 +340,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     _stopCamera();
     _pulseController.dispose();
     _rotationController.dispose();
+    _typewriterTimer?.cancel();
     super.dispose();
   }
 
@@ -376,15 +402,40 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                             margin: const EdgeInsets.symmetric(horizontal: 40),
+                            width: double.infinity,
                             decoration: BoxDecoration(
                               color: Colors.black87,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(color: _isAlerting ? Colors.red : const Color(0xFF27AE60)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (_isAlerting ? Colors.red : const Color(0xFF27AE60)).withOpacity(0.3),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                ),
+                              ],
                             ),
-                            child: const Text(
-                              "TERLINET EYES: COMUNICANDO...",
-                              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                              textAlign: TextAlign.center,
+                            child: Column(
+                              children: [
+                                Text(
+                                  _isAlerting ? ">>> ALERTA DE INTRUSÃO <<<" : ">>> TERLINET EYES COMUNICAÇÃO <<<",
+                                  style: GoogleFonts.vt323(
+                                    color: _isAlerting ? Colors.red : const Color(0xFF27AE60),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const Divider(color: Colors.white24),
+                                Text(
+                                  _subtitle,
+                                  style: GoogleFonts.vt323(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    letterSpacing: 1.5,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ),
                           ),
                         ],
