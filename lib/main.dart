@@ -97,40 +97,115 @@ class _HomePageState extends State<HomePage> {
                   )
                 : Container(color: Colors.black),
           ),
-          Container(color: Colors.black.withOpacity(0.6)),
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.security, size: 100, color: Color(0xFF27AE60)),
-                const SizedBox(height: 20),
-                Text("TERLINET EYES",
-                    style: GoogleFonts.orbitron(
-                        fontSize: 48, fontWeight: FontWeight.bold, letterSpacing: 10, color: Colors.white)),
-                const Text("SISTEMA DE MONITORAMENTO COM IA",
-                    style: TextStyle(color: Colors.white54, letterSpacing: 5)),
-                const SizedBox(height: 60),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF27AE60),
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          Container(color: Colors.black.withOpacity(0.7)),
+          SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 60),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.security, size: 80, color: Color(0xFF27AE60)),
+                  const SizedBox(height: 20),
+                  Text("TERLINET EYES",
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.orbitron(
+                          fontSize: clampDouble(MediaQuery.of(context).size.width * 0.05, 32, 48),
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 10,
+                          color: Colors.white)),
+                  const Text("SISTEMA DE MONITORAMENTO COM IA",
+                      style: TextStyle(color: Colors.white54, letterSpacing: 5)),
+                  const SizedBox(height: 40),
+
+                  // Seção de Funcionalidades (How it works)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Wrap(
+                      spacing: 20,
+                      runSpacing: 20,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        _buildFeatureCard(
+                          icon: Icons.psychology,
+                          title: "IA AVANÇADA",
+                          description: "Detecção de pose humana em tempo real processada localmente.",
+                        ),
+                        _buildFeatureCard(
+                          icon: Icons.crop_free,
+                          title: "ZONAS DINÂMICAS",
+                          description: "Defina perímetros de segurança customizáveis arrastando os pontos.",
+                        ),
+                        _buildFeatureCard(
+                          icon: Icons.campaign,
+                          title: "ALERTAS VOCAIS",
+                          description: "Protocolos de voz gerados por IA para dissuasão imediata.",
+                        ),
+                        _buildFeatureCard(
+                          icon: Icons.photo_camera,
+                          title: "EVIDÊNCIA DIGITAL",
+                          description: "Captura automática de fotos no momento exato da invasão.",
+                        ),
+                      ],
+                    ),
                   ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const MonitorPage()),
-                    );
-                  },
-                  child: const Text("INICIAR SISTEMA",
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                ),
-              ],
+
+                  const SizedBox(height: 40),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF27AE60),
+                      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 25),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      elevation: 10,
+                      shadowColor: const Color(0xFF27AE60).withOpacity(0.5),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const MonitorPage()),
+                      );
+                    },
+                    child: const Text("INICIAR SISTEMA DE ELITE",
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16, letterSpacing: 2)),
+                  ),
+                  const SizedBox(height: 40),
+                  const Text("GOVERNANCE & VISION SYSTEM V1.0",
+                      style: TextStyle(color: Colors.white24, fontSize: 10, letterSpacing: 3)),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildFeatureCard({required IconData icon, required String title, required String description}) {
+    return Container(
+      width: 260,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: const Color(0xFF27AE60), size: 32),
+          const SizedBox(height: 15),
+          Text(title, style: GoogleFonts.orbitron(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2)),
+          const SizedBox(height: 10),
+          Text(description,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.5)),
+        ],
+      ),
+    );
+  }
+
+  double clampDouble(double value, double min, double max) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
   }
 }
 
@@ -188,7 +263,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
 
   Future<void> _initTts() async {
     await _tts.setLanguage("pt-BR");
-    await _tts.setSpeechRate(0.8);
+    await _tts.setSpeechRate(1.0); // Aumentado de 0.8 para 1.0 para fala mais rápida
     await _tts.setPitch(1.2);
 
     try {
