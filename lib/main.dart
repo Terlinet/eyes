@@ -669,7 +669,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
               // Erro de Câmera
               if (_cameraError)
                 Container(
-                  color: Colors.black90,
+                  color: Colors.black87,
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.all(30),
