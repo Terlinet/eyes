@@ -162,7 +162,7 @@ class _MonitorPageState extends State<MonitorPage> {
   Future<void> _setupPoseDetection() async {
     _setPoseCallback(_onPoseDetected.toJS);
     final initSuccess = await _initPoseDetector().toDart;
-    if (initSuccess) {
+    if (initSuccess.toDart) {
       await _startCamera().toDart;
     }
   }
