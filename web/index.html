@@ -24,7 +24,6 @@
       left: 0;
       z-index: 0;
     }
-    /* Classe para espelhar a câmera frontal */
     .mirrored { transform: scaleX(-1); }
     flutter-view { z-index: 1; }
   </style>
@@ -58,10 +57,7 @@
     };
 
     window.startCamera = async (facingMode) => {
-      if (cameraInstance) {
-        await cameraInstance.stop();
-      }
-
+      if (cameraInstance) { await cameraInstance.stop(); }
       if (!videoElement) {
         videoElement = document.createElement("video");
         videoElement.id = "pose-video";
@@ -70,40 +66,39 @@
         videoElement.setAttribute("playsinline", "true");
         document.body.appendChild(videoElement);
       }
-
-      // Aplica espelhamento apenas se for a câmera frontal (user)
-      if (facingMode === "user") {
-        videoElement.classList.add("mirrored");
-      } else {
-        videoElement.classList.remove("mirrored");
-      }
+      if (facingMode === "user") { videoElement.classList.add("mirrored"); }
+      else { videoElement.classList.remove("mirrored"); }
 
       cameraInstance = new Camera(videoElement, {
-        onFrame: async () => {
-          if (poseDetector) await poseDetector.send({ image: videoElement });
-        },
+        onFrame: async () => { if (poseDetector) await poseDetector.send({ image: videoElement }); },
         facingMode: facingMode,
-        width: 1280,
-        height: 720
+        width: 1280, height: 720
       });
-
       await cameraInstance.start();
       return true;
     };
 
-    window.stopCamera = () => {
-      if (cameraInstance) {
-        cameraInstance.stop();
+    window.captureFrame = () => {
+      if (!videoElement) return "";
+      const canvas = document.createElement("canvas");
+      canvas.width = videoElement.videoWidth;
+      canvas.height = videoElement.videoHeight;
+      const ctx = canvas.getContext("2d");
+      // Se estiver espelhado, inverte o canvas para a foto ficar igual ao que se vê
+      if (videoElement.classList.contains("mirrored")) {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
       }
-      if (videoElement) {
-        videoElement.remove();
-        videoElement = null;
-      }
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg");
     };
 
-    window.setPoseCallback = (callback) => {
-      poseCallback = callback;
+    window.stopCamera = () => {
+      if (cameraInstance) cameraInstance.stop();
+      if (videoElement) { videoElement.remove(); videoElement = null; }
     };
+
+    window.setPoseCallback = (callback) => { poseCallback = callback; };
   </script>
 </head>
 <body>

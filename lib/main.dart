@@ -21,6 +21,9 @@ external void _stopCamera();
 @JS('setPoseCallback')
 external void _setPoseCallback(JSFunction callback);
 
+@JS('captureFrame')
+external JSString _captureFrame();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const TerlineTEyesApp());
@@ -145,6 +148,8 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   double _glitchX = 0;
   double _glitchY = 0;
   String _subtitle = "";
+  String? _lastPhoto;
+  bool _showFlash = false;
   Timer? _typewriterTimer;
   Timer? _glitchTimer;
   late AnimationController _pulseController;
@@ -333,6 +338,10 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     final now = DateTime.now();
     if (now.difference(_lastAlertTime).inSeconds < 8) return;
     _lastAlertTime = now;
+
+    // Captura a foto automaticamente no momento da intrusão
+    _takeAutomaticPhoto();
+
     setState(() => _isAlerting = true);
     try {
       final response = await http.post(Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/vision_alert"),
@@ -349,6 +358,21 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
       await _tts.speak(errorMsg);
     } finally {
       if (mounted) Future.delayed(const Duration(seconds: 3), () { if (mounted) setState(() => _isAlerting = false); });
+    }
+  }
+
+  void _takeAutomaticPhoto() {
+    final photoData = _captureFrame().toDart;
+    if (photoData.isNotEmpty) {
+      setState(() {
+        _lastPhoto = photoData;
+        _showFlash = true;
+      });
+      // Efeito de flash da câmera
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) setState(() => _showFlash = false);
+      });
+      debugPrint("Foto de intrusão capturada!");
     }
   }
 
@@ -428,6 +452,39 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
                   ],
                 ),
               ),
+
+              // Thumbnail da última foto capturada
+              if (_lastPhoto != null)
+                Positioned(
+                  top: 100, right: 20,
+                  child: Container(
+                    width: 120, height: 90,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.red, width: 2),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 10)],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Stack(
+                        children: [
+                          Image.network(_lastPhoto!, fit: BoxFit.cover),
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            color: Colors.red,
+                            child: const Text("CAPTURADO", style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Efeito de Flash
+              if (_showFlash)
+                Positioned.fill(
+                  child: Container(color: Colors.white.withOpacity(0.8)),
+                ),
             ],
           );
         },

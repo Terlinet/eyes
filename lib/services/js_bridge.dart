@@ -8,5 +8,8 @@ void setPoseCallback(void Function(String landmarksJson) f) {
   _setPoseCallback = allowInterop(f);
 }
 
-@JS('initMediaPipe')
-external void initMediaPipe(String videoId);
+@JS('initPoseDetector')
+external void initPoseDetector();
+
+@JS('captureFrame')
+external String captureFrame();
