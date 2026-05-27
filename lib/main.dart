@@ -130,6 +130,7 @@ class _MonitorPageState extends State<MonitorPage> {
   bool _isAlerting = false;
   DateTime _lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
 
+  // Coordenadas do polígono (Baseadas na Tela)
   List<Offset> polygonNormalized = [
     const Offset(0.3, 0.2), const Offset(0.7, 0.2),
     const Offset(0.7, 0.8), const Offset(0.3, 0.8),
@@ -150,7 +151,6 @@ class _MonitorPageState extends State<MonitorPage> {
   }
 
   void _initCameraWeb() {
-    // Injetando o vídeo diretamente no corpo do HTML para garantir visibilidade
     _videoElement = html.VideoElement()
       ..id = 'pose-video'
       ..autoplay = true
@@ -159,7 +159,6 @@ class _MonitorPageState extends State<MonitorPage> {
 
     html.document.body?.append(_videoElement!);
 
-    // Inicia MediaPipe
     Future.delayed(const Duration(milliseconds: 500), () {
       bridge.initMediaPipe('pose-video');
     });
@@ -181,12 +180,10 @@ class _MonitorPageState extends State<MonitorPage> {
     if (landmarks.isEmpty) return;
 
     if (landmarks.length > 24) {
-      // Ponto central baseado no quadril (23 e 24)
-      double midX = (landmarks[23]['x'] + landmarks[24]['x']) / 2;
+      // IMPORTANTE: Inverter o X porque a câmera frontal é espelhada
+      double midX = 1.0 - ((landmarks[23]['x'] + landmarks[24]['x']) / 2);
       double midY = (landmarks[23]['y'] + landmarks[24]['y']) / 2;
 
-      // No MediaPipe Web, X é invertido na visualização, mas as coordenadas
-      // seguem o padrão 0.0 a 1.0.
       Offset personPos = Offset(midX, midY);
 
       if (_isPointInPolygon(personPos, polygonNormalized)) {
@@ -237,7 +234,7 @@ class _MonitorPageState extends State<MonitorPage> {
 
   @override
   void dispose() {
-    _videoElement?.remove(); // Remove o vídeo do corpo do HTML ao sair
+    _videoElement?.remove();
     _videoElement = null;
     super.dispose();
   }
@@ -245,7 +242,7 @@ class _MonitorPageState extends State<MonitorPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent, // Importante: Deixar transparente para ver o vídeo atrás
+      backgroundColor: Colors.transparent,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final size = constraints.biggest;
@@ -257,7 +254,6 @@ class _MonitorPageState extends State<MonitorPage> {
           return Stack(
             fit: StackFit.expand,
             children: [
-              // O vídeo está no fundo (DOM), desenhamos o esqueleto por cima
               if (_landmarks.isNotEmpty)
                 CustomPaint(
                   painter: PosePainter(_landmarks),
@@ -338,8 +334,8 @@ class PosePainter extends CustomPainter {
 
     for (var lm in landmarks) {
       if (lm['visibility'] > 0.5) {
-        // Mapeia coordenadas 0-1 para o tamanho da tela
-        canvas.drawCircle(Offset(lm['x'] * size.width, lm['y'] * size.height), 4, paintPoint);
+        // Inverte o X no desenho também para alinhar com o vídeo espelhado
+        canvas.drawCircle(Offset((1.0 - lm['x']) * size.width, lm['y'] * size.height), 4, paintPoint);
       }
     }
   }
