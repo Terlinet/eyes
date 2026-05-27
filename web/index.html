@@ -5,26 +5,70 @@
   <meta charset="UTF-8">
   <title>TerlineT Eyes - Elite Vision</title>
 
-  <!-- Meta Tags para Preview do Site -->
   <meta name="description" content="TerlineT Eyes - Sistema de Governança e Visão Computacional de Elite.">
   <meta property="og:title" content="TerlineT Eyes">
   <meta property="og:description" content="Monitoramento Inteligente com IA e MediaPipe.">
   <meta property="og:image" content="previeweyes.png">
   <meta property="og:type" content="website">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="previeweyes.png">
 
-  <!-- Favicon de Olho (Emoji) -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👁️</text></svg>">
 
-  <!-- MediaPipe Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js" crossorigin="anonymous"></script>
+  <!-- MediaPipe Pose Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 
   <style>
-    body { background-color: #0F172A; margin: 0; }
+    body { background-color: #0F172A; margin: 0; overflow: hidden; }
+    #pose-video {
+      transform: scaleX(-1);
+      object-fit: cover;
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: -1;
+    }
   </style>
 </head>
 <body>
+  <script>
+    let poseCallback = null;
+    window.setPoseCallback = function(callback) {
+      poseCallback = callback;
+    };
+
+    window.initMediaPipe = function(videoId) {
+      const videoElement = document.getElementById(videoId);
+      const pose = new Pose({locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+      }});
+
+      pose.setOptions({
+        modelComplexity: 1,
+        smoothLandmarks: true,
+        enableSegmentation: false,
+        smoothSegmentation: false,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      pose.onResults((results) => {
+        if (poseCallback && results.poseLandmarks) {
+          poseCallback(JSON.stringify(results.poseLandmarks));
+        }
+      });
+
+      const camera = new Camera(videoElement, {
+        onFrame: async () => {
+          await pose.send({image: videoElement});
+        },
+        width: 1280,
+        height: 720
+      });
+      camera.start();
+    };
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

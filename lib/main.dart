@@ -1,26 +1,21 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:html' as html;
+import 'dart:ui_web' as ui;
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
-import 'dart:convert';
-import 'dart:async';
+import 'services/js_bridge.dart' as bridge;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  List<CameraDescription> cameras = [];
-  try {
-    cameras = await availableCameras();
-  } catch (e) {
-    debugPrint("Erro ao buscar câmeras: $e");
-  }
-  runApp(TerlineTEyesApp(cameras: cameras));
+  runApp(const TerlineTEyesApp());
 }
 
 class TerlineTEyesApp extends StatelessWidget {
-  final List<CameraDescription> cameras;
-  const TerlineTEyesApp({super.key, required this.cameras});
+  const TerlineTEyesApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -31,14 +26,13 @@ class TerlineTEyesApp extends StatelessWidget {
         primaryColor: const Color(0xFF27AE60),
         scaffoldBackgroundColor: const Color(0xFF0F172A),
       ),
-      home: HomePage(cameras: cameras),
+      home: const HomePage(),
     );
   }
 }
 
 class HomePage extends StatefulWidget {
-  final List<CameraDescription> cameras;
-  const HomePage({super.key, required this.cameras});
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -59,7 +53,6 @@ class _HomePageState extends State<HomePage> {
         setState(() {});
       }).catchError((e) {
         setState(() => _isError = true);
-        debugPrint("Erro no vídeo: $e");
       });
   }
 
@@ -106,14 +99,10 @@ class _HomePageState extends State<HomePage> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: () {
-                    if (widget.cameras.isEmpty) {
-                      _showNoCameraDialog(context);
-                    } else {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => MonitorPage(cameras: widget.cameras))
-                      );
-                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const MonitorPage()),
+                    );
                   },
                   child: const Text("INICIAR SISTEMA",
                       style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
@@ -125,84 +114,93 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
-  void _showNoCameraDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Câmera não detectada"),
-        content: const Text("Não conseguimos encontrar nenhuma câmera conectada ao seu dispositivo. Verifique as permissões do navegador ou a conexão do hardware."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))
-        ],
-      ),
-    );
-  }
 }
 
 class MonitorPage extends StatefulWidget {
-  final List<CameraDescription> cameras;
-  const MonitorPage({super.key, required this.cameras});
+  const MonitorPage({super.key});
 
   @override
   State<MonitorPage> createState() => _MonitorPageState();
 }
 
 class _MonitorPageState extends State<MonitorPage> {
-  CameraController? _controller;
   final FlutterTts _tts = FlutterTts();
-  Timer? _detectionTimer;
+  html.VideoElement? _videoElement;
+  List<dynamic> _landmarks = [];
+  bool _isAlerting = false;
+  DateTime _lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
 
-  // Coordenadas normalizadas (0.0 a 1.0)
   List<Offset> polygonNormalized = [
-    const Offset(0.2, 0.2), const Offset(0.8, 0.2),
-    const Offset(0.8, 0.8), const Offset(0.2, 0.8),
+    const Offset(0.3, 0.2), const Offset(0.7, 0.2),
+    const Offset(0.7, 0.8), const Offset(0.3, 0.8),
   ];
-
-  bool isAlerting = false;
   int? _draggingIndex;
-  DateTime lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
 
   @override
   void initState() {
     super.initState();
-    _initCamera();
     _initTts();
+    _initCameraWeb();
+    _setupPoseCallback();
   }
 
   Future<void> _initTts() async {
     await _tts.setLanguage("pt-BR");
-    await _tts.setSpeechRate(0.5); // Velocidade natural
-    await _tts.setPitch(1.0);
+    await _tts.setSpeechRate(0.5);
   }
 
-  Future<void> _initCamera() async {
-    // Usamos max para garantir a melhor resolução disponível no hardware
-    _controller = CameraController(
-      widget.cameras[0],
-      ResolutionPreset.max,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-    try {
-      await _controller!.initialize();
-      if (!mounted) return;
-      setState(() {});
+  void _initCameraWeb() {
+    final String viewId = 'pose-video-view';
 
-      // Inicia o "cérebro" da detecção
-      _startDetectionLoop();
-    } catch (e) {
-      debugPrint("Erro ao inicializar câmera: $e");
-    }
-  }
+    // ignore: undefined_prefixed_name
+    ui.platformViewRegistry.registerViewFactory(viewId, (int viewId) {
+      _videoElement = html.VideoElement()
+        ..id = 'pose-video'
+        ..autoplay = true
+        ..setAttribute('playsinline', 'true')
+        ..style.width = '100%'
+        ..style.height = '100%'
+        ..style.objectFit = 'cover';
 
-  void _startDetectionLoop() {
-    // No ambiente Web real, este timer chamaria o MediaPipe via JS
-    // Aqui simulamos o loop que verifica a área a cada 2 segundos
-    _detectionTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (!mounted) return;
-      // Implementação futura: MediaPipe.detect(frame)
+      // Pequeno atraso para garantir que o elemento está no DOM antes de iniciar MediaPipe
+      Future.delayed(const Duration(milliseconds: 500), () {
+        bridge.initMediaPipe('pose-video');
+      });
+
+      return _videoElement!;
     });
+  }
+
+  void _setupPoseCallback() {
+    bridge.setPoseCallback((landmarksJson) {
+      if (mounted) {
+        final List<dynamic> newLandmarks = jsonDecode(landmarksJson);
+        setState(() {
+          _landmarks = newLandmarks;
+        });
+        _checkInvasion(newLandmarks);
+      }
+    });
+  }
+
+  void _checkInvasion(List<dynamic> landmarks) {
+    if (landmarks.isEmpty) return;
+
+    // Ponto central aproximado (média do quadril)
+    // MediaPipe Pose: 23 (Hip Left), 24 (Hip Right)
+    if (landmarks.length > 24) {
+      double midX = (landmarks[23]['x'] + landmarks[24]['x']) / 2;
+      double midY = (landmarks[23]['y'] + landmarks[24]['y']) / 2;
+
+      // MediaPipe retorna X invertido na câmera frontal por padrão,
+      // mas no JS nós aplicamos transform: scaleX(-1).
+      // Landmarks do MediaPipe são normalizados 0.0 a 1.0.
+      Offset personPos = Offset(midX, midY);
+
+      if (_isPointInPolygon(personPos, polygonNormalized)) {
+        _processAlert();
+      }
+    }
   }
 
   bool _isPointInPolygon(Offset p, List<Offset> poly) {
@@ -218,44 +216,42 @@ class _MonitorPageState extends State<MonitorPage> {
 
   Future<void> _processAlert() async {
     final now = DateTime.now();
-    if (now.difference(lastAlertTime).inSeconds < 5) return;
+    if (now.difference(_lastAlertTime).inSeconds < 8) return;
+    _lastAlertTime = now;
 
-    setState(() => isAlerting = true);
+    setState(() => _isAlerting = true);
 
     try {
       final response = await http.post(
         Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/vision_alert"),
         body: jsonEncode({"area_name": "Perímetro Alfa", "object_type": "pessoa"}),
         headers: {"Content-Type": "application/json"},
-      );
+      ).timeout(const Duration(seconds: 4));
+
       if (response.statusCode == 200) {
         final msg = jsonDecode(response.body)['message'];
-        // A voz é local (do navegador/celular) - Instantânea!
         await _tts.speak(msg);
-        lastAlertTime = DateTime.now();
       }
     } catch (e) {
-      await _tts.speak("Sistema em Alerta. Movimentação detectada.");
-      lastAlertTime = DateTime.now();
+      await _tts.speak("Acesso detectado na zona de segurança.");
     } finally {
-      if (mounted) setState(() => isAlerting = false);
+      if (mounted) {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) setState(() => _isAlerting = false);
+        });
+      }
     }
   }
 
   @override
   void dispose() {
-    _detectionTimer?.cancel();
-    _controller?.dispose();
-    _tts.stop();
+    _videoElement?.pause();
+    _videoElement?.srcObject?.getTracks().forEach((track) => track.stop());
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_controller == null || !_controller!.value.isInitialized) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     return Scaffold(
       backgroundColor: Colors.black,
       body: LayoutBuilder(
@@ -269,12 +265,14 @@ class _MonitorPageState extends State<MonitorPage> {
           return Stack(
             fit: StackFit.expand,
             children: [
-              // Câmera Full Res
-              Center(
-                child: CameraPreview(_controller!),
-              ),
+              const HtmlElementView(viewType: 'pose-video-view'),
 
-              // Interface de Detecção
+              if (_landmarks.isNotEmpty)
+                CustomPaint(
+                  painter: PosePainter(_landmarks),
+                  size: Size.infinite,
+                ),
+
               GestureDetector(
                 onPanStart: (details) {
                   final pos = details.localPosition;
@@ -283,10 +281,6 @@ class _MonitorPageState extends State<MonitorPage> {
                       setState(() => _draggingIndex = i);
                       return;
                     }
-                  }
-                  // Toque para teste manual
-                  if (_isPointInPolygon(pos, polygonPixels)) {
-                    _processAlert();
                   }
                 },
                 onPanUpdate: (details) {
@@ -301,11 +295,10 @@ class _MonitorPageState extends State<MonitorPage> {
                 onPanEnd: (_) => setState(() => _draggingIndex = null),
                 child: CustomPaint(
                   size: Size.infinite,
-                  painter: PolygonPainter(polygon: polygonPixels, isAlerting: isAlerting),
+                  painter: PolygonPainter(polygon: polygonPixels, isAlerting: _isAlerting),
                 ),
               ),
 
-              // Barra Superior
               Positioned(
                 top: 40,
                 left: 20,
@@ -313,12 +306,25 @@ class _MonitorPageState extends State<MonitorPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-                      child: Text(isAlerting ? "STATUS: ALERTA!" : "STATUS: SEGURO",
-                          style: TextStyle(color: isAlerting ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _isAlerting ? Colors.red : Colors.green),
+                      ),
+                      child: Text(
+                        _isAlerting ? "STATUS: ALERTA!" : "STATUS: SEGURO",
+                        style: TextStyle(
+                          color: _isAlerting ? Colors.red : Colors.green,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -329,6 +335,27 @@ class _MonitorPageState extends State<MonitorPage> {
       ),
     );
   }
+}
+
+class PosePainter extends CustomPainter {
+  final List<dynamic> landmarks;
+  PosePainter(this.landmarks);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paintPoint = Paint()..color = Colors.blue.withOpacity(0.5)..style = PaintingStyle.fill;
+    final paintLine = Paint()..color = Colors.white.withOpacity(0.3)..strokeWidth = 2;
+
+    for (var lm in landmarks) {
+      if (lm['visibility'] > 0.5) {
+        // Landmarks do MediaPipe vêm em escala 0-1
+        canvas.drawCircle(Offset(lm['x'] * size.width, lm['y'] * size.height), 3, paintPoint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(PosePainter oldDelegate) => true;
 }
 
 class PolygonPainter extends CustomPainter {
