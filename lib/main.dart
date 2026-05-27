@@ -151,8 +151,9 @@ class MonitorPage extends StatefulWidget {
 class _MonitorPageState extends State<MonitorPage> {
   CameraController? _controller;
   final FlutterTts _tts = FlutterTts();
+  Timer? _detectionTimer;
 
-  // Coordenadas normalizadas (0.0 a 1.0) para manter alinhamento em qualquer tela
+  // Coordenadas normalizadas (0.0 a 1.0)
   List<Offset> polygonNormalized = [
     const Offset(0.2, 0.2), const Offset(0.8, 0.2),
     const Offset(0.8, 0.8), const Offset(0.2, 0.8),
@@ -165,25 +166,43 @@ class _MonitorPageState extends State<MonitorPage> {
   @override
   void initState() {
     super.initState();
-    if (widget.cameras.isNotEmpty) {
-      _initCamera();
-    }
-    _tts.setLanguage("pt-BR");
+    _initCamera();
+    _initTts();
+  }
+
+  Future<void> _initTts() async {
+    await _tts.setLanguage("pt-BR");
+    await _tts.setSpeechRate(0.5); // Velocidade natural
+    await _tts.setPitch(1.0);
   }
 
   Future<void> _initCamera() async {
+    // Usamos max para garantir a melhor resolução disponível no hardware
     _controller = CameraController(
       widget.cameras[0],
-      ResolutionPreset.high,
+      ResolutionPreset.max,
+      enableAudio: false,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
     try {
       await _controller!.initialize();
       if (!mounted) return;
       setState(() {});
+
+      // Inicia o "cérebro" da detecção
+      _startDetectionLoop();
     } catch (e) {
       debugPrint("Erro ao inicializar câmera: $e");
     }
+  }
+
+  void _startDetectionLoop() {
+    // No ambiente Web real, este timer chamaria o MediaPipe via JS
+    // Aqui simulamos o loop que verifica a área a cada 2 segundos
+    _detectionTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!mounted) return;
+      // Implementação futura: MediaPipe.detect(frame)
+    });
   }
 
   bool _isPointInPolygon(Offset p, List<Offset> poly) {
@@ -206,16 +225,17 @@ class _MonitorPageState extends State<MonitorPage> {
     try {
       final response = await http.post(
         Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/vision_alert"),
-        body: jsonEncode({"area_name": "Web Zone", "object_type": "pessoa"}),
+        body: jsonEncode({"area_name": "Perímetro Alfa", "object_type": "pessoa"}),
         headers: {"Content-Type": "application/json"},
       );
       if (response.statusCode == 200) {
         final msg = jsonDecode(response.body)['message'];
+        // A voz é local (do navegador/celular) - Instantânea!
         await _tts.speak(msg);
-        lastAlertTime = DateTime.now(); // Atualiza apenas após sucesso
+        lastAlertTime = DateTime.now();
       }
     } catch (e) {
-      await _tts.speak("Atenção! Movimentação detectada.");
+      await _tts.speak("Sistema em Alerta. Movimentação detectada.");
       lastAlertTime = DateTime.now();
     } finally {
       if (mounted) setState(() => isAlerting = false);
@@ -224,7 +244,9 @@ class _MonitorPageState extends State<MonitorPage> {
 
   @override
   void dispose() {
+    _detectionTimer?.cancel();
     _controller?.dispose();
+    _tts.stop();
     super.dispose();
   }
 
@@ -236,25 +258,10 @@ class _MonitorPageState extends State<MonitorPage> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: Text("TERLINET EYES - LIVE FEED", style: GoogleFonts.orbitron(fontSize: 12)),
-        backgroundColor: Colors.black,
-        elevation: 0,
-        actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 20),
-              child: Text(isAlerting ? "STATUS: ALERTA!" : "STATUS: SEGURO",
-                style: TextStyle(color: isAlerting ? Colors.red : Colors.green, fontWeight: FontWeight.bold)),
-            ),
-          )
-        ],
-      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final size = constraints.biggest;
 
-          // Mapeia coordenadas normalizadas para pixels da tela
           final polygonPixels = polygonNormalized.map((offset) {
             return Offset(offset.dx * size.width, offset.dy * size.height);
           }).toList();
@@ -262,26 +269,22 @@ class _MonitorPageState extends State<MonitorPage> {
           return Stack(
             fit: StackFit.expand,
             children: [
-              // 1. Câmera Full Screen REAL (Corrigido proporção)
-              FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                  width: _controller!.value.previewSize!.height, // Invertido para portrait se necessário
-                  height: _controller!.value.previewSize!.width,
-                  child: CameraPreview(_controller!),
-                ),
+              // Câmera Full Res
+              Center(
+                child: CameraPreview(_controller!),
               ),
 
-              // 2. Camada de Interação e Desenho
+              // Interface de Detecção
               GestureDetector(
                 onPanStart: (details) {
                   final pos = details.localPosition;
                   for (int i = 0; i < polygonPixels.length; i++) {
-                    if ((pos - polygonPixels[i]).distance < 40) {
+                    if ((pos - polygonPixels[i]).distance < 45) {
                       setState(() => _draggingIndex = i);
                       return;
                     }
                   }
+                  // Toque para teste manual
                   if (_isPointInPolygon(pos, polygonPixels)) {
                     _processAlert();
                   }
@@ -289,7 +292,6 @@ class _MonitorPageState extends State<MonitorPage> {
                 onPanUpdate: (details) {
                   if (_draggingIndex != null) {
                     setState(() {
-                      // Converte pixel de volta para normalizado, limitando entre 0 e 1
                       double dx = (details.localPosition.dx / size.width).clamp(0.0, 1.0);
                       double dy = (details.localPosition.dy / size.height).clamp(0.0, 1.0);
                       polygonNormalized[_draggingIndex!] = Offset(dx, dy);
@@ -303,12 +305,24 @@ class _MonitorPageState extends State<MonitorPage> {
                 ),
               ),
 
-              const Positioned(
-                bottom: 20,
+              // Barra Superior
+              Positioned(
+                top: 40,
                 left: 20,
-                child: Text("Arraste os pontos • Toque no meio para testar IA",
-                  style: TextStyle(color: Colors.white, fontSize: 10, backgroundColor: Colors.black54)),
-              )
+                right: 20,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                      child: Text(isAlerting ? "STATUS: ALERTA!" : "STATUS: SEGURO",
+                          style: TextStyle(color: isAlerting ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
             ],
           );
         },
@@ -325,12 +339,12 @@ class PolygonPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = isAlerting ? Colors.red : Colors.green
-      ..strokeWidth = 4
+      ..color = isAlerting ? Colors.red.withOpacity(0.8) : Colors.green.withOpacity(0.8)
+      ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
 
     final fillPaint = Paint()
-      ..color = (isAlerting ? Colors.red : Colors.green).withOpacity(0.15)
+      ..color = (isAlerting ? Colors.red : Colors.green).withOpacity(0.1)
       ..style = PaintingStyle.fill;
 
     final path = Path()..addPolygon(polygon, true);
@@ -338,8 +352,8 @@ class PolygonPainter extends CustomPainter {
     canvas.drawPath(path, paint);
 
     for (var point in polygon) {
-      canvas.drawCircle(point, 12, Paint()..color = Colors.white);
-      canvas.drawCircle(point, 4, Paint()..color = Colors.blue);
+      canvas.drawCircle(point, 10, Paint()..color = Colors.white);
+      canvas.drawCircle(point, 5, Paint()..color = isAlerting ? Colors.red : Colors.green);
     }
   }
 
