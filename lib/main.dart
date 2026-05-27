@@ -148,6 +148,7 @@ class _MonitorPageState extends State<MonitorPage> {
 
   bool isAlerting = false;
   DateTime lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
+  int? _draggingIndex;
 
   @override
   void initState() {
@@ -232,15 +233,38 @@ class _MonitorPageState extends State<MonitorPage> {
       ),
       body: Stack(
         children: [
-          Center(child: CameraPreview(_controller)),
+          // 1. Câmera Full Screen
+          SizedBox.expand(
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: _controller.value.previewSize?.height ?? 1280,
+                height: _controller.value.previewSize?.width ?? 720,
+                child: CameraPreview(_controller),
+              ),
+            ),
+          ),
 
-          // Desenho do Polígono
+          // 2. Desenho do Polígono e Interação
           GestureDetector(
+            onPanStart: (details) {
+              // Verifica se o toque foi perto de algum vértice (raio de 30 para facilitar no celular)
+              for (int i = 0; i < polygon.length; i++) {
+                if ((details.localPosition - polygon[i]).distance < 30) {
+                  setState(() => _draggingIndex = i);
+                  break;
+                }
+              }
+            },
             onPanUpdate: (details) {
-              // Lógica para arrastar pontos (igual ao Python)
-              setState(() {
-                // Aqui podemos adicionar a lógica de dragging dos pontos
-              });
+              if (_draggingIndex != null) {
+                setState(() {
+                  polygon[_draggingIndex!] = details.localPosition;
+                });
+              }
+            },
+            onPanEnd: (details) {
+              setState(() => _draggingIndex = null);
             },
             child: CustomPaint(
               size: Size.infinite,
