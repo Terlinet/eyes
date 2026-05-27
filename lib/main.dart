@@ -244,6 +244,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   late AnimationController _rotationController;
   bool _isSwitchingCamera = false;
   bool _isMonitoringActive = false;
+  bool _cameraError = false;
   int _countdown = 0;
   Timer? _countdownTimer;
   DateTime _lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
@@ -352,10 +353,20 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
   }
 
   Future<void> _setupPoseDetection() async {
-    _setPoseCallback(_onPoseDetected.toJS);
-    final initSuccess = await _initPoseDetector().toDart;
-    if (initSuccess.toDart) {
-      await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
+    try {
+      _setPoseCallback(_onPoseDetected.toJS);
+      final initSuccess = await _initPoseDetector().toDart;
+      if (initSuccess.toDart) {
+        final cameraStarted = await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
+        if (!cameraStarted.toDart) {
+          setState(() => _cameraError = true);
+        }
+      } else {
+        setState(() => _cameraError = true);
+      }
+    } catch (e) {
+      debugPrint("Erro Setup: $e");
+      setState(() => _cameraError = true);
     }
   }
 
@@ -653,6 +664,37 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
               if (_showFlash)
                 Positioned.fill(
                   child: Container(color: Colors.white.withOpacity(0.8)),
+                ),
+
+              // Erro de Câmera
+              if (_cameraError)
+                Container(
+                  color: Colors.black90,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(30),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.videocam_off, color: Colors.red, size: 80),
+                          const SizedBox(height: 20),
+                          Text("CÂMERA NÃO DETECTADA", style: GoogleFonts.orbitron(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 15),
+                          const Text(
+                            "Olá! Não conseguimos acessar sua câmera. O sistema TerlineT Eyes precisa de uma visão ativa para monitorar o perímetro.\n\nPor favor, verifique se a câmera está conectada, se você deu permissão no navegador ou se outro app a está usando.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.5),
+                          ),
+                          const SizedBox(height: 30),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF27AE60)),
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text("VOLTAR E TENTAR NOVAMENTE", style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
             ],
           );
