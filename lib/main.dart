@@ -233,7 +233,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildPrivacyNotice() {
     return Container(
-      maxWidth: 600,
+      constraints: const BoxConstraints(maxWidth: 600),
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.03),
