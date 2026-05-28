@@ -59,6 +59,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late VideoPlayerController _controller;
   bool _isError = false;
+  List<dynamic> _landmarks = [];
 
   @override
   void initState() {
@@ -72,12 +73,50 @@ class _HomePageState extends State<HomePage> {
       }).catchError((e) {
         setState(() => _isError = true);
       });
+    _setupFaceTracking();
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _stopCamera();
     super.dispose();
+  }
+
+  Future<void> _setupFaceTracking() async {
+    try {
+      _setPoseCallback(_onHomePoseDetected.toJS);
+      final initSuccess = await _initPoseDetector().toDart;
+      if (initSuccess.toDart) {
+        await _startCamera("user".toJS).toDart;
+      }
+    } catch (e) {
+      debugPrint("Erro Face Tracking Home: $e");
+    }
+  }
+
+  void _onHomePoseDetected(JSString landmarksJson) {
+    if (!mounted) return;
+    try {
+      final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
+      setState(() {
+        _landmarks = newLandmarks;
+      });
+    } catch (e) {}
+  }
+
+  Widget _buildInteractiveEye() {
+    Offset lookAt = const Offset(0.5, 0.5);
+    if (_landmarks.isNotEmpty) {
+      final nose = _landmarks[0];
+      if (nose['visibility'] > 0.5) {
+        // Na home usamos sempre a frontal, então invertemos o X
+        double x = 1.0 - (nose['x'] as num).toDouble();
+        double y = (nose['y'] as num).toDouble();
+        lookAt = Offset(x, y);
+      }
+    }
+    return CyberEye(lookAt: lookAt);
   }
 
   @override
@@ -110,7 +149,7 @@ class _HomePageState extends State<HomePage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Icon(Icons.security, size: 80, color: Color(0xFF27AE60)),
+                    _buildInteractiveEye(),
                     const SizedBox(height: 20),
                     Text("TERLINET EYES",
                         textAlign: TextAlign.center,
@@ -167,10 +206,11 @@ class _HomePageState extends State<HomePage> {
                         shadowColor: const Color(0xFF27AE60).withOpacity(0.5),
                       ),
                       onPressed: () {
+                        _stopCamera();
                         Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const MonitorPage()),
-                        );
+                        ).then((_) => _setupFaceTracking());
                       },
                       child: const Text("INICIAR SISTEMA DE ELITE",
                           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16, letterSpacing: 2)),
@@ -745,4 +785,166 @@ class PolygonPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(PolygonPainter oldDelegate) => true;
+}
+
+class CyberEye extends StatefulWidget {
+  final Offset lookAt;
+  const CyberEye({super.key, required this.lookAt});
+
+  @override
+  State<CyberEye> createState() => _CyberEyeState();
+}
+
+class _CyberEyeState extends State<CyberEye> with SingleTickerProviderStateMixin {
+  late AnimationController _rotationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 15),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _rotationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Suaviza o movimento e limita o alcance da íris
+    double dx = (widget.lookAt.dx - 0.5).clamp(-0.4, 0.4) * 60;
+    double dy = (widget.lookAt.dy - 0.5).clamp(-0.4, 0.4) * 60;
+
+    return SizedBox(
+      width: 160,
+      height: 160,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Anel Externo HUD Rotativo
+          RotationTransition(
+            turns: _rotationController,
+            child: CustomPaint(
+              size: const Size(160, 160),
+              painter: EyeHUDPainter(),
+            ),
+          ),
+          // Esclera (Fundo do olho)
+          Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.black,
+              border: Border.all(color: const Color(0xFF27AE60).withOpacity(0.3), width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF27AE60).withOpacity(0.1),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+          ),
+          // Íris e Pupila com Efeito 3D (Perspectiva e Translação)
+          Transform(
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.002) // Perspectiva
+              ..rotateY(dx * 0.005)
+              ..rotateX(-dy * 0.005)
+              ..translate(dx, dy),
+            child: Container(
+              width: 65,
+              height: 65,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const RadialGradient(
+                  colors: [
+                    Color(0xFF2ecc71),
+                    Color(0xFF27AE60),
+                    Colors.black,
+                  ],
+                  stops: [0.2, 0.7, 1.0],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF27AE60).withOpacity(0.6),
+                    blurRadius: 15,
+                  ),
+                ],
+              ),
+              child: Center(
+                // Pupila
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Reflexo de Luz
+          Positioned(
+            top: 50,
+            left: 50,
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.3),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class EyeHUDPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF27AE60).withOpacity(0.4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    // Círculo tracejado externo
+    for (var i = 0; i < 360; i += 20) {
+      double startAngle = i * math.pi / 180;
+      double sweepAngle = 10 * math.pi / 180;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius - 5),
+        startAngle,
+        sweepAngle,
+        false,
+        paint,
+      );
+    }
+
+    // Detalhes angulares
+    paint.strokeWidth = 3;
+    for (var i = 0; i < 4; i++) {
+      double angle = i * math.pi / 2;
+      canvas.drawLine(
+        Offset(center.dx + math.cos(angle) * (radius - 15), center.dy + math.sin(angle) * (radius - 15)),
+        Offset(center.dx + math.cos(angle) * radius, center.dy + math.sin(angle) * radius),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
