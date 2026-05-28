@@ -216,12 +216,46 @@ class _HomePageState extends State<HomePage> {
                           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16, letterSpacing: 2)),
                     ),
                     const SizedBox(height: 40),
+                    _buildPrivacyNotice(),
+                    const SizedBox(height: 20),
                     const Text("GOVERNANCE & VISION SYSTEM V1.0",
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white24, fontSize: 10, letterSpacing: 3)),
                   ],
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrivacyNotice() {
+    return Container(
+      maxWidth: 600,
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.shield_outlined, color: Color(0xFF27AE60), size: 20),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("PRIVACIDADE E SEGURANÇA",
+                    style: GoogleFonts.orbitron(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                const SizedBox(height: 5),
+                const Text(
+                  "O processamento de IA ocorre exclusivamente no seu navegador. Nenhuma imagem é capturada, enviada ou armazenada em nossos servidores. Você tem total controle: fotos de evidência só são salvas permanentemente se você realizar o download manual.",
+                  style: TextStyle(color: Colors.white38, fontSize: 10, height: 1.4),
+                ),
+              ],
             ),
           ),
         ],
