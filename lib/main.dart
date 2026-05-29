@@ -105,7 +105,7 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {}
   }
 
-  Widget _buildInteractiveEye() {
+  Widget _buildInteractiveEyes() {
     Offset lookAt = const Offset(0.5, 0.5);
     if (_landmarks.isNotEmpty) {
       final nose = _landmarks[0];
@@ -116,7 +116,14 @@ class _HomePageState extends State<HomePage> {
         lookAt = Offset(x, y);
       }
     }
-    return CyberEye(lookAt: lookAt);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        CyberEye(lookAt: lookAt),
+        const SizedBox(width: 20),
+        CyberEye(lookAt: lookAt),
+      ],
+    );
   }
 
   @override
@@ -149,7 +156,7 @@ class _HomePageState extends State<HomePage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    _buildInteractiveEye(),
+                    _buildInteractiveEyes(),
                     const SizedBox(height: 20),
                     Text("TERLINET EYES",
                         textAlign: TextAlign.center,
