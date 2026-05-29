@@ -839,6 +839,7 @@ class CyberEye extends StatefulWidget {
 class _CyberEyeState extends State<CyberEye> with TickerProviderStateMixin {
   late AnimationController _blinkController;
   late AnimationController _pupilController;
+  late AnimationController _smileController;
 
   @override
   void initState() {
@@ -853,7 +854,13 @@ class _CyberEyeState extends State<CyberEye> with TickerProviderStateMixin {
       duration: const Duration(seconds: 3),
     )..repeat(reverse: true);
 
+    _smileController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+
     _scheduleNextBlink();
+    _scheduleNextSmile();
   }
 
   void _scheduleNextBlink() {
@@ -867,10 +874,24 @@ class _CyberEyeState extends State<CyberEye> with TickerProviderStateMixin {
     });
   }
 
+  void _scheduleNextSmile() {
+    Future.delayed(Duration(seconds: 10 + math.Random().nextInt(10)), () {
+      if (mounted) {
+        _smileController.forward().then((_) {
+          Future.delayed(const Duration(seconds: 4), () {
+            if (mounted) _smileController.reverse();
+          });
+        });
+        _scheduleNextSmile();
+      }
+    });
+  }
+
   @override
   void dispose() {
     _blinkController.dispose();
     _pupilController.dispose();
+    _smileController.dispose();
     super.dispose();
   }
 
@@ -897,14 +918,14 @@ class _CyberEyeState extends State<CyberEye> with TickerProviderStateMixin {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Esclera (Fundo do olho) - levemente azulada/escura para suavidade
+            // Esclera (Fundo do olho)
             Container(
               color: const Color(0xFF0F172A),
             ),
-            // Íris e Pupila com Efeito 3D (Perspectiva e Translação)
+            // Íris e Pupila com Efeito 3D
             Transform(
               transform: Matrix4.identity()
-                ..setEntry(3, 2, 0.002) // Perspectiva
+                ..setEntry(3, 2, 0.002)
                 ..rotateY(dx * 0.005)
                 ..rotateX(-dy * 0.005)
                 ..translate(dx, dy),
@@ -927,7 +948,7 @@ class _CyberEyeState extends State<CyberEye> with TickerProviderStateMixin {
                     ),
                     child: Center(
                       child: Container(
-                        width: 32 + (6 * _pupilController.value), // Pupila pulsante
+                        width: 32 + (6 * _pupilController.value),
                         height: 32 + (6 * _pupilController.value),
                         decoration: const BoxDecoration(
                           shape: BoxShape.circle,
@@ -939,7 +960,7 @@ class _CyberEyeState extends State<CyberEye> with TickerProviderStateMixin {
                 },
               ),
             ),
-            // Reflexos de Luz (Glints) - fixos para profundidade
+            // Reflexo de Luz
             Positioned(
               top: 45,
               left: 55,
@@ -952,20 +973,32 @@ class _CyberEyeState extends State<CyberEye> with TickerProviderStateMixin {
                 ),
               ),
             ),
-            // Pálpebras (Efeito de Piscar)
+            // Pálpebras (Blink e Smile)
             AnimatedBuilder(
-              animation: _blinkController,
+              animation: Listenable.merge([_blinkController, _smileController]),
               builder: (context, child) {
-                return Column(
+                return Stack(
                   children: [
-                    Container(
-                      height: 80 * _blinkController.value,
-                      color: const Color(0xFF1E293B),
+                    // Pálpebra Superior (Desce no blink e um pouco no sorriso)
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: Container(
+                        height: (80 * _blinkController.value) + (15 * _smileController.value),
+                        color: const Color(0xFF1E293B),
+                      ),
                     ),
-                    const Spacer(),
-                    Container(
-                      height: 80 * _blinkController.value,
-                      color: const Color(0xFF1E293B),
+                    // Pálpebra Inferior (Sobe no blink e muito no sorriso)
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        height: (80 * _blinkController.value) + (50 * _smileController.value),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(100 * _smileController.value),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 );
