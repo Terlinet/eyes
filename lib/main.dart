@@ -836,21 +836,41 @@ class CyberEye extends StatefulWidget {
   State<CyberEye> createState() => _CyberEyeState();
 }
 
-class _CyberEyeState extends State<CyberEye> with SingleTickerProviderStateMixin {
-  late AnimationController _rotationController;
+class _CyberEyeState extends State<CyberEye> with TickerProviderStateMixin {
+  late AnimationController _blinkController;
+  late AnimationController _pupilController;
 
   @override
   void initState() {
     super.initState();
-    _rotationController = AnimationController(
+    _blinkController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 15),
-    )..repeat();
+      duration: const Duration(milliseconds: 150),
+    );
+
+    _pupilController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+
+    _scheduleNextBlink();
+  }
+
+  void _scheduleNextBlink() {
+    Future.delayed(Duration(seconds: 3 + math.Random().nextInt(5)), () {
+      if (mounted) {
+        _blinkController.forward().then((_) {
+          if (mounted) _blinkController.reverse();
+        });
+        _scheduleNextBlink();
+      }
+    });
   }
 
   @override
   void dispose() {
-    _rotationController.dispose();
+    _blinkController.dispose();
+    _pupilController.dispose();
     super.dispose();
   }
 
@@ -860,91 +880,99 @@ class _CyberEyeState extends State<CyberEye> with SingleTickerProviderStateMixin
     double dx = (widget.lookAt.dx - 0.5).clamp(-0.4, 0.4) * 60;
     double dy = (widget.lookAt.dy - 0.5).clamp(-0.4, 0.4) * 60;
 
-    return SizedBox(
+    return Container(
       width: 160,
       height: 160,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Anel Externo HUD Rotativo
-          RotationTransition(
-            turns: _rotationController,
-            child: CustomPaint(
-              size: const Size(160, 160),
-              painter: EyeHUDPainter(),
-            ),
-          ),
-          // Esclera (Fundo do olho)
-          Container(
-            width: 110,
-            height: 110,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.black,
-              border: Border.all(color: const Color(0xFF27AE60).withOpacity(0.3), width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF27AE60).withOpacity(0.1),
-                  blurRadius: 20,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
-          ),
-          // Íris e Pupila com Efeito 3D (Perspectiva e Translação)
-          Transform(
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.002) // Perspectiva
-              ..rotateY(dx * 0.005)
-              ..rotateX(-dy * 0.005)
-              ..translate(dx, dy),
-            child: Container(
-              width: 65,
-              height: 65,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const RadialGradient(
-                  colors: [
-                    Color(0xFF2ecc71),
-                    Color(0xFF27AE60),
-                    Colors.black,
-                  ],
-                  stops: [0.2, 0.7, 1.0],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF27AE60).withOpacity(0.6),
-                    blurRadius: 15,
-                  ),
-                ],
-              ),
-              child: Center(
-                // Pupila
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Reflexo de Luz
-          Positioned(
-            top: 50,
-            left: 50,
-            child: Container(
-              width: 14,
-              height: 14,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.3),
-              ),
-            ),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF27AE60).withOpacity(0.1),
+            blurRadius: 30,
+            spreadRadius: 5,
           ),
         ],
+      ),
+      child: ClipOval(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Esclera (Fundo do olho) - levemente azulada/escura para suavidade
+            Container(
+              color: const Color(0xFF0F172A),
+            ),
+            // Íris e Pupila com Efeito 3D (Perspectiva e Translação)
+            Transform(
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.002) // Perspectiva
+                ..rotateY(dx * 0.005)
+                ..rotateX(-dy * 0.005)
+                ..translate(dx, dy),
+              child: AnimatedBuilder(
+                animation: _pupilController,
+                builder: (context, child) {
+                  return Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const RadialGradient(
+                        colors: [
+                          Color(0xFF2ecc71),
+                          Color(0xFF27AE60),
+                          Colors.black,
+                        ],
+                        stops: [0.2, 0.8, 1.0],
+                      ),
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 32 + (6 * _pupilController.value), // Pupila pulsante
+                        height: 32 + (6 * _pupilController.value),
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            // Reflexos de Luz (Glints) - fixos para profundidade
+            Positioned(
+              top: 45,
+              left: 55,
+              child: Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.2),
+                ),
+              ),
+            ),
+            // Pálpebras (Efeito de Piscar)
+            AnimatedBuilder(
+              animation: _blinkController,
+              builder: (context, child) {
+                return Column(
+                  children: [
+                    Container(
+                      height: 80 * _blinkController.value,
+                      color: const Color(0xFF1E293B),
+                    ),
+                    const Spacer(),
+                    Container(
+                      height: 80 * _blinkController.value,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
