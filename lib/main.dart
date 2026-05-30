@@ -115,7 +115,16 @@ class _HomePageState extends State<HomePage> {
         lookAt = Offset(x, y);
       }
     }
-    return CyberCube(lookAt: lookAt);
+    return CyberCube(
+      lookAt: lookAt,
+      onTap: () {
+        _stopCamera();
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const HelperAssistancePage()),
+        ).then((_) => _setupFaceTracking());
+      },
+    );
   }
 
   Widget _buildInteractiveEyes() {
@@ -505,7 +514,16 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
         lookAt = Offset(x, y);
       }
     }
-    return CyberCube(lookAt: lookAt);
+    return CyberCube(
+      lookAt: lookAt,
+      onTap: () {
+        _stopCamera();
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const HelperAssistancePage()),
+        ).then((_) => _setupPoseDetection());
+      },
+    );
   }
 
   void _startMonitoring() {
@@ -1089,7 +1107,8 @@ class EyeHUDPainter extends CustomPainter {
 
 class CyberCube extends StatefulWidget {
   final Offset lookAt;
-  const CyberCube({super.key, required this.lookAt});
+  final VoidCallback? onTap;
+  const CyberCube({super.key, required this.lookAt, this.onTap});
 
   @override
   State<CyberCube> createState() => _CyberCubeState();
@@ -1119,37 +1138,40 @@ class _CyberCubeState extends State<CyberCube> with SingleTickerProviderStateMix
     double rx = (widget.lookAt.dy - 0.5) * 1.5;
     double ry = (widget.lookAt.dx - 0.5) * 1.5;
 
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final angle = _controller.value * 2 * math.pi;
-        return SizedBox(
-          width: 80,
-          height: 80,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Camadas de planos rotativos inspirados na imagem
-              _buildPlane(angle, rx, ry, Colors.cyanAccent, 0),
-              _buildPlane(angle + (math.pi / 3), rx, ry, Colors.blueAccent, 1),
-              _buildPlane(angle + (2 * math.pi / 3), rx, ry, const Color(0xFF27AE60), 2),
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final angle = _controller.value * 2 * math.pi;
+          return SizedBox(
+            width: 80,
+            height: 80,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Camadas de planos rotativos inspirados na imagem
+                _buildPlane(angle, rx, ry, Colors.cyanAccent, 0),
+                _buildPlane(angle + (math.pi / 3), rx, ry, Colors.blueAccent, 1),
+                _buildPlane(angle + (2 * math.pi / 3), rx, ry, const Color(0xFF27AE60), 2),
 
-              // Centro luminoso (Helper)
-              Text(
-                "HELPER",
-                style: GoogleFonts.orbitron(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  shadows: [
-                    Shadow(color: Colors.cyanAccent.withOpacity(0.8), blurRadius: 10),
-                  ],
+                // Centro luminoso (Helper)
+                Text(
+                  "HELPER",
+                  style: GoogleFonts.orbitron(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(color: Colors.cyanAccent.withOpacity(0.8), blurRadius: 10),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -1171,6 +1193,284 @@ class _CyberCubeState extends State<CyberCube> with SingleTickerProviderStateMix
             BoxShadow(color: color.withOpacity(0.2), blurRadius: 8, spreadRadius: 1),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class HelperAssistancePage extends StatefulWidget {
+  const HelperAssistancePage({super.key});
+
+  @override
+  State<HelperAssistancePage> createState() => _HelperAssistancePageState();
+}
+
+class _HelperAssistancePageState extends State<HelperAssistancePage> with TickerProviderStateMixin {
+  final FlutterTts _tts = FlutterTts();
+  List<dynamic> _landmarks = [];
+  bool _isSpeaking = false;
+  String _subtitle = "";
+  bool _cameraError = false;
+  bool _isFrontCamera = true;
+  bool _isSwitchingCamera = false;
+
+  // Lógica de Assistência
+  bool _fallDetected = false;
+  bool _waitingForResponse = false;
+  bool _callingHelp = false;
+  Timer? _responseTimer;
+  Timer? _alarmTimer;
+  late AnimationController _pulseController;
+  late AnimationController _rotationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    )..repeat(reverse: true);
+
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+
+    _initTts().then((_) => _speakIntro());
+    _setupPoseDetection();
+  }
+
+  Future<void> _initTts() async {
+    await _tts.setLanguage("pt-BR");
+    await _tts.setSpeechRate(0.9);
+    await _tts.setPitch(1.1);
+    _tts.setStartHandler(() => setState(() => _isSpeaking = true));
+    _tts.setCompletionHandler(() => setState(() => _isSpeaking = false));
+  }
+
+  Future<void> _speakIntro() async {
+    await Future.delayed(const Duration(seconds: 1));
+    const text = "Olá. Eu sou o seu Helper TerlineT. Estou monitorando o ambiente para garantir sua segurança. Caso precise de algo, estou aqui.";
+    setState(() => _subtitle = text);
+    await _tts.speak(text);
+  }
+
+  Future<void> _setupPoseDetection() async {
+    try {
+      _setPoseCallback(_onPoseDetected.toJS);
+      final initSuccess = await _initPoseDetector().toDart;
+      if (initSuccess.toDart) {
+        final cameraStarted = await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
+        if (!cameraStarted.toDart) setState(() => _cameraError = true);
+      } else {
+        setState(() => _cameraError = true);
+      }
+    } catch (e) {
+      setState(() => _cameraError = true);
+    }
+  }
+
+  void _onPoseDetected(JSString landmarksJson) {
+    if (!mounted) return;
+    final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
+    setState(() {
+      _landmarks = newLandmarks;
+    });
+    _monitorBehavior(newLandmarks);
+  }
+
+  void _monitorBehavior(List<dynamic> landmarks) {
+    if (_callingHelp || landmarks.isEmpty) return;
+
+    // Heurística simplificada de queda/mal-estar:
+    // Se o nariz (index 0) estiver muito baixo na tela (Y > 0.8)
+    final nose = landmarks[0];
+    if (nose['visibility'] > 0.5) {
+      double ny = (nose['y'] as num).toDouble();
+
+      if (ny > 0.8 && !_fallDetected) {
+        _handlePossibleFall();
+      } else if (ny < 0.6 && _fallDetected) {
+        _cancelAssistance();
+      }
+    }
+  }
+
+  void _handlePossibleFall() {
+    if (_waitingForResponse) return;
+    setState(() {
+      _fallDetected = true;
+      _waitingForResponse = true;
+      _subtitle = "VOCÊ ESTÁ BEM? PRECISA DE AJUDA?";
+    });
+    _tts.speak("Você está bem? Percebi um movimento atípico. Precisa de ajuda?");
+
+    _responseTimer?.cancel();
+    _responseTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted && _waitingForResponse) {
+        _triggerAlarm();
+      }
+    });
+  }
+
+  void _cancelAssistance() {
+    _responseTimer?.cancel();
+    _alarmTimer?.cancel();
+    setState(() {
+      _fallDetected = false;
+      _waitingForResponse = false;
+      _callingHelp = false;
+      _subtitle = "SISTEMA MONITORANDO. VOCÊ PARECE ESTAR BEM.";
+    });
+    _tts.speak("Fico feliz que você esteja bem. Continuo monitorando.");
+  }
+
+  void _triggerAlarm() {
+    setState(() {
+      _waitingForResponse = false;
+      _callingHelp = true;
+      _subtitle = "ALERTA! USUÁRIO NÃO RESPONDE. CHAMANDO AJUDA!";
+    });
+    _tts.speak("Atenção! Nenhuma resposta detectada. Iniciando protocolo de emergência e chamando ajuda agora.");
+
+    _alarmTimer?.cancel();
+    _alarmTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      _tts.speak("ALERTA! EMERGÊNCIA! AJUDA NECESSÁRIA NESTE LOCAL!");
+    });
+  }
+
+  Widget _buildHelperCube() {
+    final cubeColor = _callingHelp ? Colors.red : (_waitingForResponse ? Colors.orange : Colors.cyanAccent);
+    return AnimatedBuilder(
+      animation: Listenable.merge([_pulseController, _rotationController]),
+      builder: (context, child) {
+        final pulse = 1.0 + (_pulseController.value * 0.3);
+        return Transform(
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.002)
+            ..rotateX(_rotationController.value * 6.28)
+            ..rotateY(_rotationController.value * 6.28)
+            ..scale(pulse),
+          alignment: Alignment.center,
+          child: Container(
+            width: 100, height: 100,
+            decoration: BoxDecoration(
+              color: cubeColor.withOpacity(0.1),
+              border: Border.all(color: cubeColor, width: 2),
+              boxShadow: [BoxShadow(color: cubeColor.withOpacity(0.5), blurRadius: 20, spreadRadius: 5)],
+            ),
+            child: Center(
+              child: Text("HELPER", style: GoogleFonts.orbitron(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _stopCamera();
+    _responseTimer?.cancel();
+    _alarmTimer?.cancel();
+    _pulseController.dispose();
+    _rotationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (_landmarks.isNotEmpty) CustomPaint(painter: PosePainter(_landmarks, _isFrontCamera), size: Size.infinite),
+
+          // HUD de Monitoramento
+          Positioned(
+            top: 40, left: 20, right: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 30), onPressed: () => Navigator.pop(context)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: _callingHelp ? Colors.red : Colors.cyanAccent),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.security, color: _callingHelp ? Colors.red : Colors.cyanAccent, size: 18),
+                      const SizedBox(width: 10),
+                      Text(
+                        _callingHelp ? "PROTOCOLO DE EMERGÊNCIA" : "IA HELPER ATIVA",
+                        style: GoogleFonts.orbitron(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 48), // Spacer
+              ],
+            ),
+          ),
+
+          // Central Helper e Legendas
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildHelperCube(),
+                const SizedBox(height: 60),
+                if (_subtitle.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
+                    margin: const EdgeInsets.symmetric(horizontal: 40),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(color: _callingHelp ? Colors.red : Colors.cyanAccent.withOpacity(0.5)),
+                      boxShadow: [BoxShadow(color: (_callingHelp ? Colors.red : Colors.cyanAccent).withOpacity(0.2), blurRadius: 15)],
+                    ),
+                    child: Text(
+                      _subtitle,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.vt323(color: Colors.white, fontSize: 24, letterSpacing: 1.2),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // Efeito visual de Alerta
+          if (_callingHelp)
+            IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _pulseController,
+                builder: (context, child) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.red.withOpacity(_pulseController.value), width: 20),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+          if (_cameraError)
+             Container(
+               color: Colors.black,
+               child: Center(
+                 child: Text("ERRO AO ACESSAR CÂMERA", style: TextStyle(color: Colors.red)),
+               ),
+             ),
+        ],
       ),
     );
   }
