@@ -344,9 +344,11 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   const Icon(Icons.touch_app, color: Colors.cyanAccent, size: 12),
                   const SizedBox(width: 8),
-                  Text(
-                    "TOQUE NO CUBO NO CANTO SUPERIOR ESQUERDO PARA ATIVAR",
-                    style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
+                  Expanded(
+                    child: Text(
+                      "TOQUE NO CUBO NO CANTO SUPERIOR ESQUERDO PARA ATIVAR",
+                      style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
+                    ),
                   ),
                 ],
               ),
