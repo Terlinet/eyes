@@ -1354,6 +1354,23 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
     }
   }
 
+  void _switchCamera() async {
+    if (_isSwitchingCamera) return;
+    setState(() {
+      _isSwitchingCamera = true;
+      _isFrontCamera = !_isFrontCamera;
+      _landmarks = [];
+    });
+
+    try {
+      await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
+    } catch (e) {
+      debugPrint("Erro ao trocar câmera: $e");
+    } finally {
+      if (mounted) setState(() => _isSwitchingCamera = false);
+    }
+  }
+
   void _onPoseDetected(JSString landmarksJson) {
     if (!mounted) return;
     final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
@@ -1423,7 +1440,7 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final size = constraints.biggest;
@@ -1472,6 +1489,22 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 30), onPressed: () => Navigator.pop(context)),
+                    Row(
+                      children: [
+                        if (!_isDefenseActive)
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                            onPressed: _startDefense,
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text("INICIAR DEFESA"),
+                          ),
+                        const SizedBox(width: 10),
+                        IconButton(
+                          icon: const Icon(Icons.flip_camera_ios, color: Colors.white),
+                          onPressed: _isSwitchingCamera ? null : _switchCamera,
+                        ),
+                      ],
+                    ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       decoration: BoxDecoration(
@@ -1490,15 +1523,6 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
                         ],
                       ),
                     ),
-                    if (!_isDefenseActive)
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
-                        onPressed: _startDefense,
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text("INICIAR DEFESA"),
-                      )
-                    else
-                      const SizedBox(width: 48),
                   ],
                 ),
               ),
@@ -1963,6 +1987,23 @@ class _HelperAssistancePageState extends State<HelperAssistancePage> with Ticker
       }
     } catch (e) {
       setState(() => _cameraError = true);
+    }
+  }
+
+  void _switchCamera() async {
+    if (_isSwitchingCamera) return;
+    setState(() {
+      _isSwitchingCamera = true;
+      _isFrontCamera = !_isFrontCamera;
+      _landmarks = [];
+    });
+
+    try {
+      await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
+    } catch (e) {
+      debugPrint("Erro ao trocar câmera: $e");
+    } finally {
+      if (mounted) setState(() => _isSwitchingCamera = false);
     }
   }
 
