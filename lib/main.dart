@@ -633,6 +633,14 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     _checkInvasion(newLandmarks);
   }
 
+  void _startDefense() {
+    setState(() {
+      _isDefenseActive = true;
+      _subtitle = "PROTOCOLO DE DEFESA INICIADO. PERÍMETRO PROTEGIDO.";
+    });
+    _tts.speak("Sistema de defesa ativado. Iniciando neutralização de alvos.");
+  }
+
   Widget _buildInteractiveCube() {
     Offset lookAt = const Offset(0.5, 0.5);
     if (_landmarks.isNotEmpty) {
@@ -1296,6 +1304,7 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
   bool _cameraError = false;
   bool _isFrontCamera = true;
   bool _isSwitchingCamera = false;
+  bool _isDefenseActive = false;
 
   List<Offset> polygonNormalized = [
     const Offset(0.2, 0.2), const Offset(0.8, 0.2),
@@ -1355,8 +1364,16 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
     _checkInvasion(newLandmarks);
   }
 
+  void _startDefense() {
+    setState(() {
+      _isDefenseActive = true;
+      _subtitle = "PROTOCOLO DE DEFESA INICIADO. PERÍMETRO PROTEGIDO.";
+    });
+    _tts.speak("Sistema de defesa ativado. Iniciando neutralização de alvos.");
+  }
+
   void _checkInvasion(List<dynamic> landmarks) {
-    if (landmarks.isEmpty) return;
+    if (!_isDefenseActive || landmarks.isEmpty) return;
 
     for (var lm in landmarks) {
       if (lm['visibility'] > 0.6) {
@@ -1372,7 +1389,7 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
   }
 
   void _fireLaser(Offset targetNormalized) {
-    if (_laserTimer?.isActive ?? false) return;
+    if (!_isDefenseActive || (_laserTimer?.isActive ?? false)) return;
 
     setState(() {
       _laserTarget = targetNormalized;
@@ -1459,22 +1476,30 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.2),
+                        color: _isDefenseActive ? Colors.red.withOpacity(0.2) : Colors.grey.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: Colors.redAccent, width: 2),
+                        border: Border.all(color: _isDefenseActive ? Colors.redAccent : Colors.grey, width: 2),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.gpp_maybe, color: Colors.redAccent, size: 22),
+                          Icon(_isDefenseActive ? Icons.gpp_maybe : Icons.shield_outlined, color: _isDefenseActive ? Colors.redAccent : Colors.white, size: 22),
                           const SizedBox(width: 10),
                           Text(
-                            "PROTOCOLO DE DEFESA ATIVO",
+                            _isDefenseActive ? "PROTOCOLO DE DEFESA ATIVO" : "SISTEMA EM ESPERA",
                             style: GoogleFonts.orbitron(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 48),
+                    if (!_isDefenseActive)
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                        onPressed: _startDefense,
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text("INICIAR DEFESA"),
+                      )
+                    else
+                      const SizedBox(width: 48),
                   ],
                 ),
               ),
