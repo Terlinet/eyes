@@ -1442,6 +1442,7 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
     });
 
     // Toca o som do laser
+    debugPrint("Laser firing sound requested...");
     _playSound("assets/laser.mp3".toJS);
 
     _laserTimer = Timer(const Duration(milliseconds: 200), () {
