@@ -633,14 +633,6 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     _checkInvasion(newLandmarks);
   }
 
-  void _startDefense() {
-    setState(() {
-      _isDefenseActive = true;
-      _subtitle = "PROTOCOLO DE DEFESA INICIADO. PERÍMETRO PROTEGIDO.";
-    });
-    _tts.speak("Sistema de defesa ativado. Iniciando neutralização de alvos.");
-  }
-
   Widget _buildInteractiveCube() {
     Offset lookAt = const Offset(0.5, 0.5);
     if (_landmarks.isNotEmpty) {
