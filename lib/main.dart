@@ -330,6 +330,28 @@ class _HomePageState extends State<HomePage> {
           Text(description,
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.5)),
+          if (title == "HELPER ASSIST") ...[
+            const SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.cyanAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.touch_app, color: Colors.cyanAccent, size: 12),
+                  const SizedBox(width: 8),
+                  Text(
+                    "TOQUE NO CUBO NO CANTO SUPERIOR ESQUERDO PARA ATIVAR",
+                    style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1131,6 +1153,8 @@ class CyberCube extends StatefulWidget {
 
 class _CyberCubeState extends State<CyberCube> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+  final List<StardustParticle> _particles = [];
+  final math.Random _random = math.Random();
 
   @override
   void initState() {
@@ -1139,12 +1163,23 @@ class _CyberCubeState extends State<CyberCube> with SingleTickerProviderStateMix
       vsync: this,
       duration: const Duration(seconds: 10),
     )..repeat();
+
+    // Inicializa algumas partículas
+    for (int i = 0; i < 20; i++) {
+      _particles.add(StardustParticle(_random));
+    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  void _updateParticles() {
+    for (var particle in _particles) {
+      particle.update();
+    }
   }
 
   @override
@@ -1158,13 +1193,20 @@ class _CyberCubeState extends State<CyberCube> with SingleTickerProviderStateMix
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
+          _updateParticles();
           final angle = _controller.value * 2 * math.pi;
           return SizedBox(
-            width: 80,
-            height: 80,
+            width: 120, // Aumentado para caber as partículas
+            height: 120,
             child: Stack(
               alignment: Alignment.center,
               children: [
+                // Partículas de Pó Estelar
+                CustomPaint(
+                  size: const Size(120, 120),
+                  painter: StardustPainter(_particles),
+                ),
+
                 // Camadas de planos rotativos inspirados na imagem
                 _buildPlane(angle, rx, ry, Colors.cyanAccent, 0),
                 _buildPlane(angle + (math.pi / 3), rx, ry, Colors.blueAccent, 1),
@@ -1211,6 +1253,52 @@ class _CyberCubeState extends State<CyberCube> with SingleTickerProviderStateMix
       ),
     );
   }
+}
+
+class StardustParticle {
+  late double x, y, vx, vy, life, size;
+  final math.Random random;
+
+  StardustParticle(this.random) {
+    reset();
+  }
+
+  void reset() {
+    x = 0; // Centralizado no cubo
+    y = 0;
+    double angle = random.nextDouble() * 2 * math.pi;
+    double speed = random.nextDouble() * 0.5 + 0.2;
+    vx = math.cos(angle) * speed;
+    vy = math.sin(angle) * speed;
+    life = 1.0;
+    size = random.nextDouble() * 2 + 1;
+  }
+
+  void update() {
+    x += vx;
+    y += vy;
+    life -= 0.01;
+    if (life <= 0) reset();
+  }
+}
+
+class StardustPainter extends CustomPainter {
+  final List<StardustParticle> particles;
+  StardustPainter(this.particles);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    for (var p in particles) {
+      final paint = Paint()
+        ..color = Colors.cyanAccent.withOpacity(p.life)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1);
+      canvas.drawCircle(center + Offset(p.x, p.y), p.size, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 class HelperAssistancePage extends StatefulWidget {
