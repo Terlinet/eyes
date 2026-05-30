@@ -279,6 +279,12 @@ class _HomePageState extends State<HomePage> {
                             title: "EVIDÊNCIA DIGITAL",
                             description: "Captura automática de fotos no momento exato da invasão.",
                           ),
+                          _buildFeatureCard(
+                            icon: Icons.shield,
+                            title: "DEFENSE",
+                            color: Colors.redAccent,
+                            description: "Protocolo de defesa ativa com disparos de laser automáticos.",
+                          ),
                         ],
                       ),
                     ),
@@ -399,6 +405,40 @@ class _HomePageState extends State<HomePage> {
                       "TOQUE NO CUBO NO CANTO SUPERIOR ESQUERDO PARA ATIVAR",
                       style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (title == "DEFENSE") ...[
+            const SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.touch_app, color: Colors.redAccent, size: 12),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "TOQUE NO CAÇA TIE ABAIXO DO HELPER PARA ATIVAR",
+                          style: GoogleFonts.orbitron(color: Colors.redAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(color: Colors.white10, height: 10),
+                  Text(
+                    "* SIMULAÇÃO FUTURISTA INTERATIVA *",
+                    style: GoogleFonts.orbitron(color: Colors.white38, fontSize: 7, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
