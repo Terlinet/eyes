@@ -166,11 +166,6 @@ class _HomePageState extends State<HomePage> {
                 : Container(color: Colors.black),
           ),
           Container(color: Colors.black.withOpacity(0.7)),
-          Positioned(
-            top: 20,
-            left: 20,
-            child: _buildInteractiveCube(),
-          ),
           SingleChildScrollView(
             child: Center(
               child: Container(
@@ -259,6 +254,11 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
+          ),
+          Positioned(
+            top: 20,
+            left: 20,
+            child: _buildInteractiveCube(),
           ),
         ],
       ),
@@ -675,11 +675,6 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
             fit: StackFit.expand,
             children: [
               if (_landmarks.isNotEmpty) CustomPaint(painter: PosePainter(_landmarks, _isFrontCamera), size: Size.infinite),
-              Positioned(
-                top: 20,
-                left: 20,
-                child: _buildInteractiveCube(),
-              ),
               GestureDetector(
                 onPanStart: (details) {
                   final pos = details.localPosition;
@@ -698,6 +693,11 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
                 },
                 onPanEnd: (_) => setState(() => _draggingIndex = null),
                 child: CustomPaint(size: Size.infinite, painter: PolygonPainter(polygon: polygonPixels, isAlerting: _isAlerting)),
+              ),
+              Positioned(
+                top: 20,
+                left: 20,
+                child: _buildInteractiveCube(),
               ),
               Positioned(
                 bottom: 100, left: 0, right: 0,
