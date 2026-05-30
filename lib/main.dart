@@ -1332,8 +1332,8 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
 
   Future<void> _speakIntro() async {
     await Future.delayed(const Duration(seconds: 1));
-    const text = "TerlineT operacional. Sistema de defesa contra invasão de alto risco ativo. "
-                 "Qualquer ser humano ou robô em movimento dentro do perímetro será destruído. "
+    const text = "TerlineT operacional. Sistema de defesa ativo. Mira calibrada para neutralização de alvos humanoides de alto risco. "
+                 "Qualquer presença humanoide detectada no perímetro será eliminada com precisão máxima. "
                  "Ajuste a zona de exclusão agora.";
     setState(() => _subtitle = text);
     await _tts.speak(text);
@@ -1391,16 +1391,24 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
   void _checkInvasion(List<dynamic> landmarks) {
     if (!_isDefenseActive || landmarks.isEmpty) return;
 
+    bool anyPartInside = false;
+    Offset? targetPoint;
+
     for (var lm in landmarks) {
-      if (lm['visibility'] > 0.6) {
+      if (lm['visibility'] > 0.5) {
         double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
         double y = (lm['y'] as num).toDouble();
 
         if (_isPointInPolygon(Offset(x, y), polygonNormalized)) {
-          _fireLaser(Offset(x, y));
-          break;
+          anyPartInside = true;
+          targetPoint = Offset(x, y);
+          break; // Atira na primeira parte detectada dentro
         }
       }
+    }
+
+    if (anyPartInside && targetPoint != null) {
+      _fireLaser(targetPoint);
     }
   }
 
