@@ -105,7 +105,7 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {}
   }
 
-  Widget _buildInteractiveSmiley() {
+  Widget _buildInteractiveCube() {
     Offset lookAt = const Offset(0.5, 0.5);
     if (_landmarks.isNotEmpty) {
       final nose = _landmarks[0];
@@ -115,7 +115,7 @@ class _HomePageState extends State<HomePage> {
         lookAt = Offset(x, y);
       }
     }
-    return InteractiveSmiley(lookAt: lookAt);
+    return CyberCube(lookAt: lookAt);
   }
 
   Widget _buildInteractiveEyes() {
@@ -160,7 +160,7 @@ class _HomePageState extends State<HomePage> {
           Positioned(
             top: 20,
             left: 20,
-            child: _buildInteractiveSmiley(),
+            child: _buildInteractiveCube(),
           ),
           SingleChildScrollView(
             child: Center(
@@ -495,7 +495,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     _checkInvasion(newLandmarks);
   }
 
-  Widget _buildInteractiveSmiley() {
+  Widget _buildInteractiveCube() {
     Offset lookAt = const Offset(0.5, 0.5);
     if (_landmarks.isNotEmpty) {
       final nose = _landmarks[0];
@@ -505,7 +505,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
         lookAt = Offset(x, y);
       }
     }
-    return InteractiveSmiley(lookAt: lookAt);
+    return CyberCube(lookAt: lookAt);
   }
 
   void _startMonitoring() {
@@ -660,7 +660,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
               Positioned(
                 top: 20,
                 left: 20,
-                child: _buildInteractiveSmiley(),
+                child: _buildInteractiveCube(),
               ),
               GestureDetector(
                 onPanStart: (details) {
@@ -1087,78 +1087,91 @@ class EyeHUDPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class InteractiveSmiley extends StatelessWidget {
+class CyberCube extends StatefulWidget {
   final Offset lookAt;
-  const InteractiveSmiley({super.key, required this.lookAt});
+  const CyberCube({super.key, required this.lookAt});
+
+  @override
+  State<CyberCube> createState() => _CyberCubeState();
+}
+
+class _CyberCubeState extends State<CyberCube> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Sensibilidade do olhar ajustada para o tamanho menor do emoji
-    double dx = (lookAt.dx - 0.5).clamp(-0.4, 0.4) * 12;
-    double dy = (lookAt.dy - 0.5).clamp(-0.4, 0.4) * 8;
+    // Sensibilidade do olhar ajustada para o cubo
+    double rx = (widget.lookAt.dy - 0.5) * 1.5;
+    double ry = (widget.lookAt.dx - 0.5) * 1.5;
 
-    return Container(
-      width: 45,
-      height: 45,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: Color(0xFFFFD93D), // Amarelo clássico de emoji
-        boxShadow: [
-          BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(2, 2)),
-        ],
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Olho Esquerdo
-          Positioned(
-            top: 14 + dy,
-            left: 13 + dx,
-            child: Container(
-              width: 4,
-              height: 5,
-              decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
-            ),
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final angle = _controller.value * 2 * math.pi;
+        return SizedBox(
+          width: 80,
+          height: 80,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Camadas de planos rotativos inspirados na imagem
+              _buildPlane(angle, rx, ry, Colors.cyanAccent, 0),
+              _buildPlane(angle + (math.pi / 3), rx, ry, Colors.blueAccent, 1),
+              _buildPlane(angle + (2 * math.pi / 3), rx, ry, const Color(0xFF27AE60), 2),
+
+              // Centro luminoso (Helper)
+              Text(
+                "HELPER",
+                style: GoogleFonts.orbitron(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  shadows: [
+                    Shadow(color: Colors.cyanAccent.withOpacity(0.8), blurRadius: 10),
+                  ],
+                ),
+              ),
+            ],
           ),
-          // Olho Direito
-          Positioned(
-            top: 14 + dy,
-            right: 13 - dx,
-            child: Container(
-              width: 4,
-              height: 5,
-              decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
-            ),
-          ),
-          // Sorriso (CustomPaint)
-          Positioned(
-            bottom: 10 - (dy * 0.1),
-            child: CustomPaint(
-              size: const Size(18, 9),
-              painter: SmilePainter(),
-            ),
-          ),
-        ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPlane(double angle, double rx, double ry, Color color, int index) {
+    return Transform(
+      transform: Matrix4.identity()
+        ..setEntry(3, 2, 0.001)
+        ..rotateX(angle + rx)
+        ..rotateY(angle * 0.5 + ry)
+        ..rotateZ(angle * 0.2),
+      alignment: Alignment.center,
+      child: Container(
+        width: 50,
+        height: 50,
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.05),
+          border: Border.all(color: color.withOpacity(0.6), width: 1.2),
+          boxShadow: [
+            BoxShadow(color: color.withOpacity(0.2), blurRadius: 8, spreadRadius: 1),
+          ],
+        ),
       ),
     );
   }
-}
-
-class SmilePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path();
-    path.moveTo(0, 0);
-    path.quadraticBezierTo(size.width / 2, size.height * 1.8, size.width, 0);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
