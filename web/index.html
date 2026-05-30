@@ -159,6 +159,37 @@
       link.download = filename;
       link.click();
     };
+
+    // --- Voz e Reconhecimento ---
+    let speechRecognition = null;
+    let speechCallback = null;
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      speechRecognition = new SpeechRecognition();
+      speechRecognition.lang = 'pt-BR';
+      speechRecognition.continuous = true;
+      speechRecognition.interimResults = false;
+
+      speechRecognition.onresult = (event) => {
+        const text = event.results[event.results.length - 1][0].transcript;
+        if (speechCallback) speechCallback(text);
+      };
+    }
+
+    window.startListening = () => {
+      if (speechRecognition) {
+        try { speechRecognition.start(); } catch(e) { console.log("Reconhecimento já ativo ou erro."); }
+      }
+    };
+
+    window.stopListening = () => {
+      if (speechRecognition) {
+        try { speechRecognition.stop(); } catch(e) {}
+      }
+    };
+
+    window.setSpeechCallback = (callback) => { speechCallback = callback; };
   </script>
 </head>
 <body>
