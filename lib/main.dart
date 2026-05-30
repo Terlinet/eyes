@@ -85,7 +85,7 @@ class _HomePageState extends State<HomePage> {
       }).catchError((e) {
         setState(() => _isError = true);
       });
-    _setupFaceTracking();
+    _setupPoseDetection();
   }
 
   @override
@@ -95,7 +95,7 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  Future<void> _setupFaceTracking() async {
+  Future<void> _setupPoseDetection() async {
     try {
       _setPoseCallback(_onHomePoseDetected.toJS);
       final initSuccess = await _initPoseDetector().toDart;
@@ -134,7 +134,7 @@ class _HomePageState extends State<HomePage> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const HelperAssistancePage()),
-        ).then((_) => _setupFaceTracking());
+        ).then((_) => _setupPoseDetection());
       },
     );
   }
@@ -303,7 +303,7 @@ class _HomePageState extends State<HomePage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const MonitorPage()),
-                        ).then((_) => _setupFaceTracking());
+                        ).then((_) => _setupPoseDetection());
                       },
                       child: const Text("INICIAR SISTEMA DE ELITE",
                           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16, letterSpacing: 2)),
@@ -1577,7 +1577,7 @@ class _CyberCubeState extends State<CyberCube> with SingleTickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
-    // Sensibilidade do olhar ajustada para o cubo
+    // Sensibilidade do olhar adjusted para o cubo
     double rx = (widget.lookAt.dy - 0.5) * 1.5;
     double ry = (widget.lookAt.dx - 0.5) * 1.5;
 
@@ -1838,260 +1838,6 @@ class WingPatternPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class DefensePage extends StatefulWidget {
-  const DefensePage({super.key});
-
-  @override
-  State<DefensePage> createState() => _DefensePageState();
-}
-
-class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin {
-  final FlutterTts _tts = FlutterTts();
-  List<dynamic> _landmarks = [];
-  bool _isSpeaking = false;
-  String _subtitle = "";
-  bool _cameraError = false;
-  bool _isFrontCamera = true;
-  bool _isSwitchingCamera = false;
-
-  List<Offset> polygonNormalized = [
-    const Offset(0.2, 0.2), const Offset(0.8, 0.2),
-    const Offset(0.8, 0.8), const Offset(0.2, 0.8),
-  ];
-  int? _draggingIndex;
-
-  // Laser Logic
-  Offset? _laserTarget;
-  Timer? _laserTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _initTts().then((_) => _speakIntro());
-    _setupPoseDetection();
-  }
-
-  Future<void> _initTts() async {
-    await _tts.setLanguage("pt-BR");
-    await _tts.setSpeechRate(1.0);
-    await _tts.setPitch(0.9); // Voz mais grave e autoritária para defesa
-    _tts.setStartHandler(() => setState(() => _isSpeaking = true));
-    _tts.setCompletionHandler(() => setState(() => _isSpeaking = false));
-  }
-
-  Future<void> _speakIntro() async {
-    await Future.delayed(const Duration(seconds: 1));
-    const text = "TerlineT operacional. Sistema de defesa contra invasão de alto risco ativo. "
-                 "Qualquer ser humano ou robô em movimento dentro do perímetro será destruído. "
-                 "Ajuste a zona de exclusão agora.";
-    setState(() => _subtitle = text);
-    await _tts.speak(text);
-  }
-
-  Future<void> _setupPoseDetection() async {
-    try {
-      _setPoseCallback(_onPoseDetected.toJS);
-      final initSuccess = await _initPoseDetector().toDart;
-      if (initSuccess.toDart) {
-        final cameraStarted = await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
-        if (!cameraStarted.toDart) setState(() => _cameraError = true);
-      } else {
-        setState(() => _cameraError = true);
-      }
-    } catch (e) {
-      setState(() => _cameraError = true);
-    }
-  }
-
-  void _onPoseDetected(JSString landmarksJson) {
-    if (!mounted) return;
-    final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
-    setState(() {
-      _landmarks = newLandmarks;
-    });
-    _checkInvasion(newLandmarks);
-  }
-
-  void _checkInvasion(List<dynamic> landmarks) {
-    if (landmarks.isEmpty) return;
-
-    for (var lm in landmarks) {
-      if (lm['visibility'] > 0.6) {
-        double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
-        double y = (lm['y'] as num).toDouble();
-
-        if (_isPointInPolygon(Offset(x, y), polygonNormalized)) {
-          _fireLaser(Offset(x, y));
-          break;
-        }
-      }
-    }
-  }
-
-  void _fireLaser(Offset targetNormalized) {
-    if (_laserTimer?.isActive ?? false) return;
-
-    setState(() {
-      _laserTarget = targetNormalized;
-    });
-
-    // Toca o som do laser
-    _playSound("assets/laser.mp3".toJS);
-
-    _laserTimer = Timer(const Duration(milliseconds: 200), () {
-      if (mounted) setState(() => _laserTarget = null);
-    });
-  }
-
-  bool _isPointInPolygon(Offset p, List<Offset> poly) {
-    bool inside = false;
-    for (int i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      if (((poly[i].dy > p.dy) != (poly[j].dy > p.dy)) &&
-          (p.dx < (poly[j].dx - poly[i].dx) * (p.dy - poly[i].dy) / (poly[j].dy - poly[i].dy) + poly[i].dx)) {
-        inside = !inside;
-      }
-    }
-    return inside;
-  }
-
-  @override
-  void dispose() {
-    _stopCamera();
-    _laserTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final size = constraints.biggest;
-          final polygonPixels = polygonNormalized.map((offset) => Offset(offset.dx * size.width, offset.dy * size.height)).toList();
-
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              if (_landmarks.isNotEmpty) CustomPaint(painter: PosePainter(_landmarks, _isFrontCamera), size: Size.infinite),
-
-              // Polígono de Defesa
-              GestureDetector(
-                onPanStart: (details) {
-                  final pos = details.localPosition;
-                  for (int i = 0; i < polygonPixels.length; i++) {
-                    if ((pos - polygonPixels[i]).distance < 50) { setState(() => _draggingIndex = i); return; }
-                  }
-                },
-                onPanUpdate: (details) {
-                  if (_draggingIndex != null) {
-                    setState(() {
-                      double dx = (details.localPosition.dx / size.width).clamp(0.0, 1.0);
-                      double dy = (details.localPosition.dy / size.height).clamp(0.0, 1.0);
-                      polygonNormalized[_draggingIndex!] = Offset(dx, dy);
-                    });
-                  }
-                },
-                onPanEnd: (_) => setState(() => _draggingIndex = null),
-                child: CustomPaint(size: Size.infinite, painter: PolygonPainter(polygon: polygonPixels, isAlerting: _laserTarget != null)),
-              ),
-
-              // Laser Visual
-              if (_laserTarget != null)
-                CustomPaint(
-                  size: Size.infinite,
-                  painter: LaserPainter(
-                    start: const Offset(100, 100), // Posição aproximada do TieFighter no topo esquerdo
-                    end: Offset(_laserTarget!.dx * size.width, _laserTarget!.dy * size.height),
-                  ),
-                ),
-
-              // HUD de Defesa
-              Positioned(
-                top: 40, left: 20, right: 20,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 30), onPressed: () => Navigator.pop(context)),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: Colors.redAccent, width: 2),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.gpp_maybe, color: Colors.redAccent, size: 22),
-                          const SizedBox(width: 10),
-                          Text(
-                            "PROTOCOLO DE DEFESA ATIVO",
-                            style: GoogleFonts.orbitron(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 48),
-                  ],
-                ),
-              ),
-
-              // Legendas de IA
-              Positioned(
-                bottom: 80, left: 40, right: 40,
-                child: _subtitle.isNotEmpty ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                  decoration: BoxDecoration(
-                    color: Colors.black87,
-                    border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    _subtitle,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.vt323(color: Colors.redAccent, fontSize: 20),
-                  ),
-                ) : const SizedBox.shrink(),
-              ),
-
-              if (_cameraError)
-                Container(color: Colors.black, child: const Center(child: Text("ERRO CRÍTICO: CÂMERA OFFLINE", style: TextStyle(color: Colors.red)))),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class LaserPainter extends CustomPainter {
-  final Offset start;
-  final Offset end;
-  LaserPainter({required this.start, required this.end});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.redAccent
-      ..strokeWidth = 4
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-
-    final innerPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 1.5;
-
-    canvas.drawLine(start, end, paint);
-    canvas.drawLine(start, end, innerPaint);
-
-    // Efeito de impacto
-    canvas.drawCircle(end, 10, paint);
-    canvas.drawCircle(end, 5, innerPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
 class HelperAssistancePage extends StatefulWidget {
   const HelperAssistancePage({super.key});
 
@@ -2138,9 +1884,26 @@ class _HelperAssistancePageState extends State<HelperAssistancePage> with Ticker
   Future<void> _initTts() async {
     await _tts.setLanguage("pt-BR");
     await _tts.setSpeechRate(1.0); // Aumentado para dar mais energia
-    await _tts.setPitch(1.0); // Tom natural de assistência
+    await _tts.setPitch(1.0); // Tom mais humano e equilibrado
+
+    try {
+      var voices = await _tts.getVoices;
+      for (var voice in voices) {
+        String name = voice["name"].toString().toLowerCase();
+        if (name.contains("portuguese") || name.contains("brazil")) {
+          if (name.contains("female") || name.contains("feminina") || name.contains("maria") || name.contains("google pt-br")) {
+            await _tts.setVoice({"name": voice["name"], "locale": voice["locale"]});
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Erro ao buscar vozes: $e");
+    }
+
     _tts.setStartHandler(() => setState(() => _isSpeaking = true));
     _tts.setCompletionHandler(() => setState(() => _isSpeaking = false));
+    _tts.setErrorHandler((msg) => setState(() => _isSpeaking = false));
   }
 
   Future<void> _speakIntro() async {
