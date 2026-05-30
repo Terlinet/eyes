@@ -1413,24 +1413,57 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
   void _checkInvasion(List<dynamic> landmarks) {
     if (!_isDefenseActive || landmarks.isEmpty) return;
 
-    bool anyPartInside = false;
-    Offset? targetPoint;
+    // Filtra apenas pontos com alta confiança
+    final highConfidence = landmarks.where((lm) => (lm['visibility'] as num) > 0.7).toList();
 
-    for (var lm in landmarks) {
-      if (lm['visibility'] > 0.5) {
-        double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
-        double y = (lm['y'] as num).toDouble();
+    // Exige pelo menos 5 pontos confiáveis para considerar um humanoide
+    if (highConfidence.length < 5) return;
 
-        if (_isPointInPolygon(Offset(x, y), polygonNormalized)) {
-          anyPartInside = true;
-          targetPoint = Offset(x, y);
-          break; // Atira na primeira parte detectada dentro
-        }
+    // Pontos-chave para validação estrutural (nariz, ombros, quadril central)
+    final nose = landmarks[0];
+    final leftShoulder = landmarks[11];
+    final rightShoulder = landmarks[12];
+    final leftHip = landmarks[23];
+    final rightHip = landmarks[24];
+
+    // Verifica se os pontos-chave têm alta confiança
+    if (nose['visibility'] < 0.7 ||
+        leftShoulder['visibility'] < 0.7 ||
+        rightShoulder['visibility'] < 0.7) return;
+
+    // Conta quantos desses pontos-chave estão dentro do polígono
+    int pointsInside = 0;
+    final targets = [nose, leftShoulder, rightShoulder, leftHip, rightHip];
+
+    for (var lm in targets) {
+      if (lm['visibility'] < 0.5) continue;
+      double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
+      double y = (lm['y'] as num).toDouble();
+
+      if (_isPointInPolygon(Offset(x, y), polygonNormalized)) {
+        pointsInside++;
       }
     }
 
-    if (anyPartInside && targetPoint != null) {
-      _fireLaser(targetPoint);
+    // Só dispara se pelo menos 3 pontos-chave estiverem dentro da zona
+    if (pointsInside >= 3) {
+      // Calcula o centro desses pontos para mirar
+      double avgX = 0, avgY = 0;
+      int count = 0;
+      for (var lm in targets) {
+        if (lm['visibility'] < 0.5) continue;
+        double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
+        double y = (lm['y'] as num).toDouble();
+        if (_isPointInPolygon(Offset(x, y), polygonNormalized)) {
+          avgX += x;
+          avgY += y;
+          count++;
+        }
+      }
+      if (count > 0) {
+        Offset target = Offset(avgX / count, avgY / count);
+        _fireLaser(target);
+      }
     }
   }
 
@@ -1445,7 +1478,8 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
     debugPrint("Laser firing sound requested...");
     _playSound("assets/laser.mp3".toJS);
 
-    _laserTimer = Timer(const Duration(milliseconds: 200), () {
+    // Cooldown maior: 800ms
+    _laserTimer = Timer(const Duration(milliseconds: 800), () {
       if (mounted) setState(() => _laserTarget = null);
     });
   }
@@ -1508,7 +1542,7 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
                 CustomPaint(
                   size: Size.infinite,
                   painter: LaserPainter(
-                    start: const Offset(100, 100), // Posição aproximada do TieFighter no topo esquerdo
+                    start: const Offset(70, 220), // Alinhado com o Caça TIE no topo esquerdo
                     end: Offset(_laserTarget!.dx * size.width, _laserTarget!.dy * size.height),
                   ),
                 ),
