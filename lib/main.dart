@@ -1355,9 +1355,9 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
     } catch (e) {
       debugPrint("Erro IA Defense Intro: $e");
     }
-    const text = "TerlineT operacional. Sistema de defesa ativo. Mira calibrada para neutralização de alvos de alto risco. "
-                 "Qualquer presença detectada no perímetro será eliminada com precisão máxima. "
-                 "Ajuste a zona.";
+    const text = "TerlineT operacional. Sistema de defesa ativo. Mira calibrada para neutralização de alvos humanoides de alto risco. "
+                 "Qualquer presença humanoide detectada no perímetro será eliminada com precisão máxima. "
+                 "Ajuste a zona de exclusão agora.";
     setState(() => _subtitle = text);
     await _tts.speak(text);
   }
@@ -1396,48 +1396,11 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
 
   void _onPoseDetected(JSString landmarksJson) {
     if (!mounted) return;
-    try {
-      final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
-      setState(() {
-        _landmarks = newLandmarks;
-      });
-      _checkInvasion(newLandmarks);
-    } catch (e) {
-      debugPrint("Erro Pose Detection Defense: $e");
-    }
-  }
-
-  Widget _buildInteractiveTieFighter() {
-    Offset lookAt = const Offset(0.5, 0.5);
-    if (_landmarks.isNotEmpty) {
-      final nose = _landmarks[0];
-      if (nose['visibility'] > 0.5) {
-        double x = _isFrontCamera ? 1.0 - (nose['x'] as num).toDouble() : (nose['x'] as num).toDouble();
-        double y = (nose['y'] as num).toDouble();
-        lookAt = Offset(x, y);
-      }
-    }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          "DEFENSE UNIT",
-          style: GoogleFonts.orbitron(
-            color: Colors.redAccent,
-            fontSize: 8,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-            shadows: [
-              Shadow(color: Colors.red.withOpacity(0.7), blurRadius: 8),
-            ],
-          ),
-        ),
-        const SizedBox(height: 5),
-        TieFighter(
-          lookAt: lookAt,
-        ),
-      ],
-    );
+    final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
+    setState(() {
+      _landmarks = newLandmarks;
+    });
+    _checkInvasion(newLandmarks);
   }
 
   void _startDefense() {
@@ -1451,13 +1414,15 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
   void _checkInvasion(List<dynamic> landmarks) {
     if (!_isDefenseActive || landmarks.isEmpty) return;
 
-    // Filtra pontos de alta visibilidade dentro da zona para mira precisa
+    // Sensibilidade máxima: detecta qualquer parte do corpo (cabeça, braço, perna)
+    // com visibilidade mínima (0.1) que entre no perímetro.
     List<Offset> targetsInZone = [];
     for (var lm in landmarks) {
-      if ((lm['visibility'] as num) > 0.75) {
+      if ((lm['visibility'] as num) > 0.1) {
         double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
         double y = (lm['y'] as num).toDouble();
         Offset p = Offset(x, y);
+
         if (_isPointInPolygon(p, polygonNormalized)) {
           targetsInZone.add(p);
         }
@@ -1465,7 +1430,7 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
     }
 
     if (targetsInZone.isNotEmpty) {
-      // Calcula o centro de massa dos pontos detectados na zona para um disparo preciso no esqueleto
+      // Calcula o centro de massa de todas as partes do corpo detectadas na zona
       double sumX = 0, sumY = 0;
       for (var p in targetsInZone) {
         sumX += p.dx;
@@ -1473,10 +1438,14 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
       }
       Offset target = Offset(sumX / targetsInZone.length, sumY / targetsInZone.length);
 
-      setState(() => _lockOnPoint = target);
+      setState(() {
+        _lockOnPoint = target;
+      });
       _fireLaser(target);
     } else {
-      if (_lockOnPoint != null) setState(() => _lockOnPoint = null);
+      if (_lockOnPoint != null) {
+        setState(() => _lockOnPoint = null);
+      }
     }
   }
 
@@ -1487,10 +1456,11 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
       _laserTarget = targetNormalized;
     });
 
+    // Som do laser disparado
     _playSound("assets/laser.mp3".toJS);
 
-    // Cooldown otimizado para 400ms: equilíbrio entre cadência de tiro e realismo
-    _laserTimer = Timer(const Duration(milliseconds: 400), () {
+    // Tempo de recarga curto para permitir rastreamento contínuo (300ms)
+    _laserTimer = Timer(const Duration(milliseconds: 300), () {
       if (mounted) setState(() => _laserTarget = null);
     });
   }
@@ -1527,13 +1497,6 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
             children: [
               if (_landmarks.isNotEmpty) CustomPaint(painter: PosePainter(_landmarks, _isFrontCamera), size: Size.infinite),
 
-              // UI do Caça TIE
-              Positioned(
-                top: 150,
-                left: 20,
-                child: _buildInteractiveTieFighter(),
-              ),
-
               // Polígono de Defesa
               GestureDetector(
                 onPanStart: (details) {
@@ -1552,7 +1515,7 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
                   }
                 },
                 onPanEnd: (_) => setState(() => _draggingIndex = null),
-                child: CustomPaint(size: Size.infinite, painter: PolygonPainter(polygon: polygonPixels, isAlerting: _laserTarget != null)),
+                child: CustomPaint(size: Size.infinite, painter: PolygonPainter(polygon: polygonPixels, isAlerting: _lockOnPoint != null)),
               ),
 
               // Laser Visual
@@ -1560,29 +1523,28 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
                 CustomPaint(
                   size: Size.infinite,
                   painter: LaserPainter(
-                    start: const Offset(70, 240), // Alinhado com o centro do Caça TIE adicionado
+                    start: const Offset(70, 200), // Alinhado com o TieFighter tático
                     end: Offset(_laserTarget!.dx * size.width, _laserTarget!.dy * size.height),
                   ),
                 ),
 
-              // Lock-on Visual
+              // Mira de Travamento (Lock-on)
               if (_lockOnPoint != null)
                 Positioned(
-                  left: _lockOnPoint!.dx * size.width - 20,
-                  top: _lockOnPoint!.dy * size.height - 20,
+                  left: _lockOnPoint!.dx * size.width - 25,
+                  top: _lockOnPoint!.dy * size.height - 25,
                   child: Container(
-                    width: 40,
-                    height: 40,
+                    width: 50, height: 50,
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.redAccent, width: 2),
+                      border: Border.all(color: Colors.redAccent.withOpacity(0.5), width: 1),
                       shape: BoxShape.circle,
                     ),
-                    child: Center(
-                      child: Container(
-                        width: 4,
-                        height: 4,
-                        color: Colors.redAccent,
-                      ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(width: 10, height: 2, color: Colors.redAccent),
+                        Container(width: 2, height: 10, color: Colors.redAccent),
+                      ],
                     ),
                   ),
                 ),
