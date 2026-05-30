@@ -1320,7 +1320,14 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
     await _tts.setSpeechRate(1.0);
     await _tts.setPitch(0.9); // Voz mais grave e autoritária para defesa
     _tts.setStartHandler(() => setState(() => _isSpeaking = true));
-    _tts.setCompletionHandler(() => setState(() => _isSpeaking = false));
+    _tts.setCompletionHandler(() {
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+          _subtitle = ""; // Limpa o texto ao terminar de falar
+        });
+      }
+    });
   }
 
   Future<void> _speakIntro() async {
@@ -1499,7 +1506,7 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
               // Legendas de IA
               Positioned(
                 bottom: 80, left: 40, right: 40,
-                child: _subtitle.isNotEmpty ? Container(
+                child: (_isSpeaking && _subtitle.isNotEmpty) ? Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                   decoration: BoxDecoration(
                     color: Colors.black87,
