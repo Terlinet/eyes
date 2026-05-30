@@ -105,6 +105,19 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {}
   }
 
+  Widget _buildInteractiveSmiley() {
+    Offset lookAt = const Offset(0.5, 0.5);
+    if (_landmarks.isNotEmpty) {
+      final nose = _landmarks[0];
+      if (nose['visibility'] > 0.5) {
+        double x = 1.0 - (nose['x'] as num).toDouble();
+        double y = (nose['y'] as num).toDouble();
+        lookAt = Offset(x, y);
+      }
+    }
+    return InteractiveSmiley(lookAt: lookAt);
+  }
+
   Widget _buildInteractiveEyes() {
     Offset lookAt = const Offset(0.5, 0.5);
     if (_landmarks.isNotEmpty) {
@@ -144,6 +157,11 @@ class _HomePageState extends State<HomePage> {
                 : Container(color: Colors.black),
           ),
           Container(color: Colors.black.withOpacity(0.7)),
+          Positioned(
+            top: 20,
+            left: 20,
+            child: _buildInteractiveSmiley(),
+          ),
           SingleChildScrollView(
             child: Center(
               child: Container(
@@ -477,6 +495,19 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     _checkInvasion(newLandmarks);
   }
 
+  Widget _buildInteractiveSmiley() {
+    Offset lookAt = const Offset(0.5, 0.5);
+    if (_landmarks.isNotEmpty) {
+      final nose = _landmarks[0];
+      if (nose['visibility'] > 0.5) {
+        double x = _isFrontCamera ? 1.0 - (nose['x'] as num).toDouble() : (nose['x'] as num).toDouble();
+        double y = (nose['y'] as num).toDouble();
+        lookAt = Offset(x, y);
+      }
+    }
+    return InteractiveSmiley(lookAt: lookAt);
+  }
+
   void _startMonitoring() {
     if (_isMonitoringActive || _countdown > 0) return;
 
@@ -626,6 +657,11 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
             fit: StackFit.expand,
             children: [
               if (_landmarks.isNotEmpty) CustomPaint(painter: PosePainter(_landmarks, _isFrontCamera), size: Size.infinite),
+              Positioned(
+                top: 20,
+                left: 20,
+                child: _buildInteractiveSmiley(),
+              ),
               GestureDetector(
                 onPanStart: (details) {
                   final pos = details.localPosition;
@@ -1045,6 +1081,82 @@ class EyeHUDPainter extends CustomPainter {
         paint,
       );
     }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class InteractiveSmiley extends StatelessWidget {
+  final Offset lookAt;
+  const InteractiveSmiley({super.key, required this.lookAt});
+
+  @override
+  Widget build(BuildContext context) {
+    // Sensibilidade do olhar ajustada para o tamanho menor do emoji
+    double dx = (lookAt.dx - 0.5).clamp(-0.4, 0.4) * 12;
+    double dy = (lookAt.dy - 0.5).clamp(-0.4, 0.4) * 8;
+
+    return Container(
+      width: 45,
+      height: 45,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFFFFD93D), // Amarelo clássico de emoji
+        boxShadow: [
+          BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(2, 2)),
+        ],
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Olho Esquerdo
+          Positioned(
+            top: 14 + dy,
+            left: 13 + dx,
+            child: Container(
+              width: 4,
+              height: 5,
+              decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
+            ),
+          ),
+          // Olho Direito
+          Positioned(
+            top: 14 + dy,
+            right: 13 - dx,
+            child: Container(
+              width: 4,
+              height: 5,
+              decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
+            ),
+          ),
+          // Sorriso (CustomPaint)
+          Positioned(
+            bottom: 10 - (dy * 0.1),
+            child: CustomPaint(
+              size: const Size(18, 9),
+              painter: SmilePainter(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SmilePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path();
+    path.moveTo(0, 0);
+    path.quadraticBezierTo(size.width / 2, size.height * 1.8, size.width, 0);
+    canvas.drawPath(path, paint);
   }
 
   @override
