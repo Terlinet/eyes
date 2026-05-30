@@ -27,6 +27,15 @@ external JSString _captureFrame();
 @JS('downloadImage')
 external void _downloadImage(JSString dataUrl, JSString filename);
 
+@JS('startListening')
+external void _startListening();
+
+@JS('stopListening')
+external void _stopListening();
+
+@JS('setSpeechCallback')
+external void _setSpeechCallback(JSFunction callback);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const TerlineTEyesApp());
@@ -207,6 +216,12 @@ class _HomePageState extends State<HomePage> {
                             description: "Detecção de pose humana em tempo real processada localmente.",
                           ),
                           _buildFeatureCard(
+                            icon: Icons.health_and_safety,
+                            title: "HELPER ASSIST",
+                            color: Colors.cyanAccent,
+                            description: "IA de cuidado pessoal. Detecção inteligente de quedas com resposta por voz.",
+                          ),
+                          _buildFeatureCard(
                             icon: Icons.crop_free,
                             title: "ZONAS DINÂMICAS",
                             description: "Defina perímetros de segurança customizáveis arrastando os pontos.",
@@ -297,7 +312,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildFeatureCard({required IconData icon, required String title, required String description}) {
+  Widget _buildFeatureCard({required IconData icon, required String title, required String description, Color color = const Color(0xFF27AE60)}) {
     return Container(
       width: 260,
       padding: const EdgeInsets.all(20),
@@ -308,7 +323,7 @@ class _HomePageState extends State<HomePage> {
       ),
       child: Column(
         children: [
-          Icon(icon, color: const Color(0xFF27AE60), size: 32),
+          Icon(icon, color: color, size: 32),
           const SizedBox(height: 15),
           Text(title, style: GoogleFonts.orbitron(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2)),
           const SizedBox(height: 10),
@@ -1238,6 +1253,7 @@ class _HelperAssistancePageState extends State<HelperAssistancePage> with Ticker
 
     _initTts().then((_) => _speakIntro());
     _setupPoseDetection();
+    _setSpeechCallback(_onSpeechDetected.toJS);
   }
 
   Future<void> _initTts() async {
@@ -1250,6 +1266,20 @@ class _HelperAssistancePageState extends State<HelperAssistancePage> with Ticker
 
   Future<void> _speakIntro() async {
     await Future.delayed(const Duration(seconds: 1));
+    try {
+      final response = await http.get(
+        Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/helper_intro")
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final text = jsonDecode(response.body)['message'];
+        setState(() => _subtitle = text);
+        await _tts.speak(text);
+        return;
+      }
+    } catch (e) {
+      debugPrint("Erro IA Helper Intro: $e");
+    }
     const text = "Olá. Eu sou o seu Helper TerlineT. Estou monitorando o ambiente para garantir sua segurança. Caso precise de algo, estou aqui.";
     setState(() => _subtitle = text);
     await _tts.speak(text);
@@ -1279,6 +1309,20 @@ class _HelperAssistancePageState extends State<HelperAssistancePage> with Ticker
     _monitorBehavior(newLandmarks);
   }
 
+  void _onSpeechDetected(JSString text) {
+    if (!mounted || !_waitingForResponse) return;
+    String speechText = text.toDart.toLowerCase();
+    debugPrint("IA Helper ouviu: $speechText");
+
+    if (speechText.contains("bem") ||
+        speechText.contains("estou") ||
+        speechText.contains("okay") ||
+        speechText.contains("não precisa") ||
+        speechText.contains("tudo certo")) {
+      _cancelAssistance();
+    }
+  }
+
   void _monitorBehavior(List<dynamic> landmarks) {
     if (_callingHelp || landmarks.isEmpty) return;
 
@@ -1301,21 +1345,46 @@ class _HelperAssistancePageState extends State<HelperAssistancePage> with Ticker
     setState(() {
       _fallDetected = true;
       _waitingForResponse = true;
-      _subtitle = "VOCÊ ESTÁ BEM? PRECISA DE AJUDA?";
+      _subtitle = "VERIFICANDO ESTADO...";
     });
-    _tts.speak("Você está bem? Percebi um movimento atípico. Precisa de ajuda?");
+
+    _processHelperCheck();
+    _startListening();
 
     _responseTimer?.cancel();
-    _responseTimer = Timer(const Duration(seconds: 10), () {
+    _responseTimer = Timer(const Duration(seconds: 12), () {
       if (mounted && _waitingForResponse) {
         _triggerAlarm();
       }
     });
   }
 
+  Future<void> _processHelperCheck() async {
+    try {
+      final response = await http.post(
+        Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/helper_check"),
+        body: jsonEncode({"event_type": "fall_detection"}),
+        headers: {"Content-Type": "application/json"}
+      ).timeout(const Duration(seconds: 4));
+
+      if (response.statusCode == 200) {
+        final msg = jsonDecode(response.body)['message'];
+        setState(() => _subtitle = msg);
+        await _tts.speak(msg);
+        return;
+      }
+    } catch (e) {
+      debugPrint("Erro IA Helper Check: $e");
+    }
+    const fallback = "Você está bem? Percebi um movimento atípico. Precisa de ajuda?";
+    setState(() => _subtitle = fallback);
+    await _tts.speak(fallback);
+  }
+
   void _cancelAssistance() {
     _responseTimer?.cancel();
     _alarmTimer?.cancel();
+    _stopListening();
     setState(() {
       _fallDetected = false;
       _waitingForResponse = false;
@@ -1326,21 +1395,43 @@ class _HelperAssistancePageState extends State<HelperAssistancePage> with Ticker
   }
 
   void _triggerAlarm() {
+    _stopListening();
     setState(() {
       _waitingForResponse = false;
       _callingHelp = true;
-      _subtitle = "ALERTA! USUÁRIO NÃO RESPONDE. CHAMANDO AJUDA!";
+      _subtitle = "INICIANDO PROTOCOLO DE EMERGÊNCIA...";
     });
-    _tts.speak("Atenção! Nenhuma resposta detectada. Iniciando protocolo de emergência e chamando ajuda agora.");
+
+    _processEmergencyAlert();
 
     _alarmTimer?.cancel();
-    _alarmTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+    _alarmTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
       }
       _tts.speak("ALERTA! EMERGÊNCIA! AJUDA NECESSÁRIA NESTE LOCAL!");
     });
+  }
+
+  Future<void> _processEmergencyAlert() async {
+    try {
+      final response = await http.get(
+        Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/helper_emergency")
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final msg = jsonDecode(response.body)['message'];
+        setState(() => _subtitle = msg);
+        await _tts.speak(msg);
+        return;
+      }
+    } catch (e) {
+      debugPrint("Erro IA Helper Emergency: $e");
+    }
+    const errorMsg = "Atenção! Nenhuma resposta detectada. Iniciando protocolo de emergência e chamando ajuda agora.";
+    setState(() => _subtitle = errorMsg);
+    await _tts.speak(errorMsg);
   }
 
   Widget _buildHelperCube() {
@@ -1375,6 +1466,7 @@ class _HelperAssistancePageState extends State<HelperAssistancePage> with Ticker
   @override
   void dispose() {
     _stopCamera();
+    _stopListening();
     _responseTimer?.cancel();
     _alarmTimer?.cancel();
     _pulseController.dispose();
