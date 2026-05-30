@@ -1332,6 +1332,20 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
 
   Future<void> _speakIntro() async {
     await Future.delayed(const Duration(seconds: 1));
+    try {
+      final response = await http.get(
+        Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/defense_intro")
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final text = jsonDecode(response.body)['message'];
+        setState(() => _subtitle = text);
+        await _tts.speak(text);
+        return;
+      }
+    } catch (e) {
+      debugPrint("Erro IA Defense Intro: $e");
+    }
     const text = "TerlineT operacional. Sistema de defesa ativo. Mira calibrada para neutralização de alvos humanoides de alto risco. "
                  "Qualquer presença humanoide detectada no perímetro será eliminada com precisão máxima. "
                  "Ajuste a zona de exclusão agora.";
