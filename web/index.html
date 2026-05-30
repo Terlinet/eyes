@@ -190,6 +190,11 @@
     };
 
     window.setSpeechCallback = (callback) => { speechCallback = callback; };
+
+    window.playSound = (soundPath) => {
+      const audio = new Audio(soundPath);
+      audio.play().catch(e => console.error("Erro ao tocar som:", e));
+    };
   </script>
 </head>
 <body>

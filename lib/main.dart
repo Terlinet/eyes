@@ -36,6 +36,9 @@ external void _stopListening();
 @JS('setSpeechCallback')
 external void _setSpeechCallback(JSFunction callback);
 
+@JS('playSound')
+external void _playSound(JSString soundPath);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const TerlineTEyesApp());
@@ -133,6 +136,46 @@ class _HomePageState extends State<HomePage> {
           MaterialPageRoute(builder: (context) => const HelperAssistancePage()),
         ).then((_) => _setupFaceTracking());
       },
+    );
+  }
+
+  Widget _buildInteractiveTieFighter() {
+    Offset lookAt = const Offset(0.5, 0.5);
+    if (_landmarks.isNotEmpty) {
+      final nose = _landmarks[0];
+      if (nose['visibility'] > 0.5) {
+        double x = 1.0 - (nose['x'] as num).toDouble();
+        double y = (nose['y'] as num).toDouble();
+        lookAt = Offset(x, y);
+      }
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          "DEFENSE",
+          style: GoogleFonts.orbitron(
+            color: Colors.redAccent,
+            fontSize: 8,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+            shadows: [
+              Shadow(color: Colors.red.withOpacity(0.7), blurRadius: 8),
+            ],
+          ),
+        ),
+        const SizedBox(height: 5),
+        TieFighter(
+          lookAt: lookAt,
+          onTap: () {
+            _stopCamera();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const DefensePage()),
+            ).then((_) => _setupPoseDetection());
+          },
+        ),
+      ],
     );
   }
 
@@ -273,7 +316,14 @@ class _HomePageState extends State<HomePage> {
           Positioned(
             top: 20,
             left: 20,
-            child: _buildInteractiveCube(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildInteractiveCube(),
+                const SizedBox(height: 10),
+                _buildInteractiveTieFighter(),
+              ],
+            ),
           ),
         ],
       ),
@@ -565,6 +615,46 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     );
   }
 
+  Widget _buildInteractiveTieFighter() {
+    Offset lookAt = const Offset(0.5, 0.5);
+    if (_landmarks.isNotEmpty) {
+      final nose = _landmarks[0];
+      if (nose['visibility'] > 0.5) {
+        double x = _isFrontCamera ? 1.0 - (nose['x'] as num).toDouble() : (nose['x'] as num).toDouble();
+        double y = (nose['y'] as num).toDouble();
+        lookAt = Offset(x, y);
+      }
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          "DEFENSE",
+          style: GoogleFonts.orbitron(
+            color: Colors.redAccent,
+            fontSize: 8,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+            shadows: [
+              Shadow(color: Colors.red.withOpacity(0.7), blurRadius: 8),
+            ],
+          ),
+        ),
+        const SizedBox(height: 5),
+        TieFighter(
+          lookAt: lookAt,
+          onTap: () {
+            _stopCamera();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const DefensePage()),
+            ).then((_) => _setupPoseDetection());
+          },
+        ),
+      ],
+    );
+  }
+
   void _startMonitoring() {
     if (_isMonitoringActive || _countdown > 0) return;
 
@@ -736,7 +826,14 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
               Positioned(
                 top: 20,
                 left: 20,
-                child: _buildInteractiveCube(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildInteractiveCube(),
+                    const SizedBox(height: 10),
+                    _buildInteractiveTieFighter(),
+                  ],
+                ),
               ),
               Positioned(
                 bottom: 100, left: 0, right: 0,
@@ -1144,6 +1241,260 @@ class EyeHUDPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+class DefensePage extends StatefulWidget {
+  const DefensePage({super.key});
+
+  @override
+  State<DefensePage> createState() => _DefensePageState();
+}
+
+class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin {
+  final FlutterTts _tts = FlutterTts();
+  List<dynamic> _landmarks = [];
+  bool _isSpeaking = false;
+  String _subtitle = "";
+  bool _cameraError = false;
+  bool _isFrontCamera = true;
+  bool _isSwitchingCamera = false;
+
+  List<Offset> polygonNormalized = [
+    const Offset(0.2, 0.2), const Offset(0.8, 0.2),
+    const Offset(0.8, 0.8), const Offset(0.2, 0.8),
+  ];
+  int? _draggingIndex;
+
+  // Laser Logic
+  Offset? _laserTarget;
+  Timer? _laserTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _initTts().then((_) => _speakIntro());
+    _setupPoseDetection();
+  }
+
+  Future<void> _initTts() async {
+    await _tts.setLanguage("pt-BR");
+    await _tts.setSpeechRate(1.0);
+    await _tts.setPitch(0.9); // Voz mais grave e autoritária para defesa
+    _tts.setStartHandler(() => setState(() => _isSpeaking = true));
+    _tts.setCompletionHandler(() => setState(() => _isSpeaking = false));
+  }
+
+  Future<void> _speakIntro() async {
+    await Future.delayed(const Duration(seconds: 1));
+    const text = "TerlineT operacional. Sistema de defesa contra invasão de alto risco ativo. "
+                 "Qualquer ser humano ou robô em movimento dentro do perímetro será destruído. "
+                 "Ajuste a zona de exclusão agora.";
+    setState(() => _subtitle = text);
+    await _tts.speak(text);
+  }
+
+  Future<void> _setupPoseDetection() async {
+    try {
+      _setPoseCallback(_onPoseDetected.toJS);
+      final initSuccess = await _initPoseDetector().toDart;
+      if (initSuccess.toDart) {
+        final cameraStarted = await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
+        if (!cameraStarted.toDart) setState(() => _cameraError = true);
+      } else {
+        setState(() => _cameraError = true);
+      }
+    } catch (e) {
+      setState(() => _cameraError = true);
+    }
+  }
+
+  void _onPoseDetected(JSString landmarksJson) {
+    if (!mounted) return;
+    final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
+    setState(() {
+      _landmarks = newLandmarks;
+    });
+    _checkInvasion(newLandmarks);
+  }
+
+  void _checkInvasion(List<dynamic> landmarks) {
+    if (landmarks.isEmpty) return;
+
+    for (var lm in landmarks) {
+      if (lm['visibility'] > 0.6) {
+        double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
+        double y = (lm['y'] as num).toDouble();
+
+        if (_isPointInPolygon(Offset(x, y), polygonNormalized)) {
+          _fireLaser(Offset(x, y));
+          break;
+        }
+      }
+    }
+  }
+
+  void _fireLaser(Offset targetNormalized) {
+    if (_laserTimer?.isActive ?? false) return;
+
+    setState(() {
+      _laserTarget = targetNormalized;
+    });
+
+    // Toca o som do laser
+    _playSound("assets/laser.mp3".toJS);
+
+    _laserTimer = Timer(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() => _laserTarget = null);
+    });
+  }
+
+  bool _isPointInPolygon(Offset p, List<Offset> poly) {
+    bool inside = false;
+    for (int i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      if (((poly[i].dy > p.dy) != (poly[j].dy > p.dy)) &&
+          (p.dx < (poly[j].dx - poly[i].dx) * (p.dy - poly[i].dy) / (poly[j].dy - poly[i].dy) + poly[i].dx)) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  @override
+  void dispose() {
+    _stopCamera();
+    _laserTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final size = constraints.biggest;
+          final polygonPixels = polygonNormalized.map((offset) => Offset(offset.dx * size.width, offset.dy * size.height)).toList();
+
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              if (_landmarks.isNotEmpty) CustomPaint(painter: PosePainter(_landmarks, _isFrontCamera), size: Size.infinite),
+
+              // Polígono de Defesa
+              GestureDetector(
+                onPanStart: (details) {
+                  final pos = details.localPosition;
+                  for (int i = 0; i < polygonPixels.length; i++) {
+                    if ((pos - polygonPixels[i]).distance < 50) { setState(() => _draggingIndex = i); return; }
+                  }
+                },
+                onPanUpdate: (details) {
+                  if (_draggingIndex != null) {
+                    setState(() {
+                      double dx = (details.localPosition.dx / size.width).clamp(0.0, 1.0);
+                      double dy = (details.localPosition.dy / size.height).clamp(0.0, 1.0);
+                      polygonNormalized[_draggingIndex!] = Offset(dx, dy);
+                    });
+                  }
+                },
+                onPanEnd: (_) => setState(() => _draggingIndex = null),
+                child: CustomPaint(size: Size.infinite, painter: PolygonPainter(polygon: polygonPixels, isAlerting: _laserTarget != null)),
+              ),
+
+              // Laser Visual
+              if (_laserTarget != null)
+                CustomPaint(
+                  size: Size.infinite,
+                  painter: LaserPainter(
+                    start: const Offset(100, 100), // Posição aproximada do TieFighter no topo esquerdo
+                    end: Offset(_laserTarget!.dx * size.width, _laserTarget!.dy * size.height),
+                  ),
+                ),
+
+              // HUD de Defesa
+              Positioned(
+                top: 40, left: 20, right: 20,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 30), onPressed: () => Navigator.pop(context)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.redAccent, width: 2),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.gpp_maybe, color: Colors.redAccent, size: 22),
+                          const SizedBox(width: 10),
+                          Text(
+                            "PROTOCOLO DE DEFESA ATIVO",
+                            style: GoogleFonts.orbitron(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 48),
+                  ],
+                ),
+              ),
+
+              // Legendas de IA
+              Positioned(
+                bottom: 80, left: 40, right: 40,
+                child: _subtitle.isNotEmpty ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                  decoration: BoxDecoration(
+                    color: Colors.black87,
+                    border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    _subtitle,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.vt323(color: Colors.redAccent, fontSize: 20),
+                  ),
+                ) : const SizedBox.shrink(),
+              ),
+
+              if (_cameraError)
+                Container(color: Colors.black, child: const Center(child: Text("ERRO CRÍTICO: CÂMERA OFFLINE", style: TextStyle(color: Colors.red)))),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class LaserPainter extends CustomPainter {
+  final Offset start;
+  final Offset end;
+  LaserPainter({required this.start, required this.end});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.redAccent
+      ..strokeWidth = 4
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+
+    final innerPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 1.5;
+
+    canvas.drawLine(start, end, paint);
+    canvas.drawLine(start, end, innerPaint);
+
+    // Efeito de impacto
+    canvas.drawCircle(end, 10, paint);
+    canvas.drawCircle(end, 5, innerPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
 class CyberCube extends StatefulWidget {
   final Offset lookAt;
   final VoidCallback? onTap;
@@ -1297,6 +1648,404 @@ class StardustPainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1);
       canvas.drawCircle(center + Offset(p.x, p.y), p.size, paint);
     }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class TieFighter extends StatefulWidget {
+  final Offset lookAt;
+  final VoidCallback? onTap;
+  const TieFighter({super.key, required this.lookAt, this.onTap});
+
+  @override
+  State<TieFighter> createState() => _TieFighterState();
+}
+
+class _TieFighterState extends State<TieFighter> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    double rx = (widget.lookAt.dy - 0.5) * 1.5;
+    double ry = (widget.lookAt.dx - 0.5) * 1.5;
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final rotation = _controller.value * 2 * math.pi;
+          return SizedBox(
+            width: 100,
+            height: 100,
+            child: Center(
+              child: Transform(
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.001)
+                  ..rotateX(rx)
+                  ..rotateY(rotation + ry),
+                alignment: Alignment.center,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Asa Esquerda
+                    Transform(
+                      transform: Matrix4.identity()..translate(-35.0, 0.0, 0.0),
+                      child: _buildWing(),
+                    ),
+                    // Asa Direita
+                    Transform(
+                      transform: Matrix4.identity()..translate(35.0, 0.0, 0.0),
+                      child: _buildWing(),
+                    ),
+                    // Conexão Central
+                    Container(
+                      width: 70,
+                      height: 4,
+                      color: Colors.grey[700],
+                    ),
+                    // Cabine (Esfera)
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.grey[800],
+                        border: Border.all(color: Colors.grey[600]!, width: 2),
+                        boxShadow: [
+                          BoxShadow(color: Colors.redAccent.withOpacity(0.5), blurRadius: 10, spreadRadius: 1),
+                        ],
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 15,
+                          height: 15,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black.withOpacity(0.5),
+                            border: Border.all(color: Colors.redAccent, width: 1),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildWing() {
+    return Transform(
+      transform: Matrix4.identity()..rotateY(math.pi / 2),
+      alignment: Alignment.center,
+      child: Container(
+        width: 60,
+        height: 80,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          border: Border.all(color: Colors.grey[700]!, width: 2),
+        ),
+        child: CustomPaint(
+          painter: WingPatternPainter(),
+        ),
+      ),
+    );
+  }
+}
+
+class WingPatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey[800]!
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    // Linhas radiais
+    for (int i = 0; i < 6; i++) {
+      double angle = i * math.pi / 3;
+      canvas.drawLine(
+        center,
+        Offset(center.dx + math.cos(angle) * size.width, center.dy + math.sin(angle) * size.height),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class DefensePage extends StatefulWidget {
+  const DefensePage({super.key});
+
+  @override
+  State<DefensePage> createState() => _DefensePageState();
+}
+
+class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin {
+  final FlutterTts _tts = FlutterTts();
+  List<dynamic> _landmarks = [];
+  bool _isSpeaking = false;
+  String _subtitle = "";
+  bool _cameraError = false;
+  bool _isFrontCamera = true;
+  bool _isSwitchingCamera = false;
+
+  List<Offset> polygonNormalized = [
+    const Offset(0.2, 0.2), const Offset(0.8, 0.2),
+    const Offset(0.8, 0.8), const Offset(0.2, 0.8),
+  ];
+  int? _draggingIndex;
+
+  // Laser Logic
+  Offset? _laserTarget;
+  Timer? _laserTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _initTts().then((_) => _speakIntro());
+    _setupPoseDetection();
+  }
+
+  Future<void> _initTts() async {
+    await _tts.setLanguage("pt-BR");
+    await _tts.setSpeechRate(1.0);
+    await _tts.setPitch(0.9); // Voz mais grave e autoritária para defesa
+    _tts.setStartHandler(() => setState(() => _isSpeaking = true));
+    _tts.setCompletionHandler(() => setState(() => _isSpeaking = false));
+  }
+
+  Future<void> _speakIntro() async {
+    await Future.delayed(const Duration(seconds: 1));
+    const text = "TerlineT operacional. Sistema de defesa contra invasão de alto risco ativo. "
+                 "Qualquer ser humano ou robô em movimento dentro do perímetro será destruído. "
+                 "Ajuste a zona de exclusão agora.";
+    setState(() => _subtitle = text);
+    await _tts.speak(text);
+  }
+
+  Future<void> _setupPoseDetection() async {
+    try {
+      _setPoseCallback(_onPoseDetected.toJS);
+      final initSuccess = await _initPoseDetector().toDart;
+      if (initSuccess.toDart) {
+        final cameraStarted = await _startCamera(_isFrontCamera ? "user".toJS : "environment".toJS).toDart;
+        if (!cameraStarted.toDart) setState(() => _cameraError = true);
+      } else {
+        setState(() => _cameraError = true);
+      }
+    } catch (e) {
+      setState(() => _cameraError = true);
+    }
+  }
+
+  void _onPoseDetected(JSString landmarksJson) {
+    if (!mounted) return;
+    final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
+    setState(() {
+      _landmarks = newLandmarks;
+    });
+    _checkInvasion(newLandmarks);
+  }
+
+  void _checkInvasion(List<dynamic> landmarks) {
+    if (landmarks.isEmpty) return;
+
+    for (var lm in landmarks) {
+      if (lm['visibility'] > 0.6) {
+        double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
+        double y = (lm['y'] as num).toDouble();
+
+        if (_isPointInPolygon(Offset(x, y), polygonNormalized)) {
+          _fireLaser(Offset(x, y));
+          break;
+        }
+      }
+    }
+  }
+
+  void _fireLaser(Offset targetNormalized) {
+    if (_laserTimer?.isActive ?? false) return;
+
+    setState(() {
+      _laserTarget = targetNormalized;
+    });
+
+    // Toca o som do laser
+    _playSound("assets/laser.mp3".toJS);
+
+    _laserTimer = Timer(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() => _laserTarget = null);
+    });
+  }
+
+  bool _isPointInPolygon(Offset p, List<Offset> poly) {
+    bool inside = false;
+    for (int i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      if (((poly[i].dy > p.dy) != (poly[j].dy > p.dy)) &&
+          (p.dx < (poly[j].dx - poly[i].dx) * (p.dy - poly[i].dy) / (poly[j].dy - poly[i].dy) + poly[i].dx)) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  @override
+  void dispose() {
+    _stopCamera();
+    _laserTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final size = constraints.biggest;
+          final polygonPixels = polygonNormalized.map((offset) => Offset(offset.dx * size.width, offset.dy * size.height)).toList();
+
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              if (_landmarks.isNotEmpty) CustomPaint(painter: PosePainter(_landmarks, _isFrontCamera), size: Size.infinite),
+
+              // Polígono de Defesa
+              GestureDetector(
+                onPanStart: (details) {
+                  final pos = details.localPosition;
+                  for (int i = 0; i < polygonPixels.length; i++) {
+                    if ((pos - polygonPixels[i]).distance < 50) { setState(() => _draggingIndex = i); return; }
+                  }
+                },
+                onPanUpdate: (details) {
+                  if (_draggingIndex != null) {
+                    setState(() {
+                      double dx = (details.localPosition.dx / size.width).clamp(0.0, 1.0);
+                      double dy = (details.localPosition.dy / size.height).clamp(0.0, 1.0);
+                      polygonNormalized[_draggingIndex!] = Offset(dx, dy);
+                    });
+                  }
+                },
+                onPanEnd: (_) => setState(() => _draggingIndex = null),
+                child: CustomPaint(size: Size.infinite, painter: PolygonPainter(polygon: polygonPixels, isAlerting: _laserTarget != null)),
+              ),
+
+              // Laser Visual
+              if (_laserTarget != null)
+                CustomPaint(
+                  size: Size.infinite,
+                  painter: LaserPainter(
+                    start: const Offset(100, 100), // Posição aproximada do TieFighter no topo esquerdo
+                    end: Offset(_laserTarget!.dx * size.width, _laserTarget!.dy * size.height),
+                  ),
+                ),
+
+              // HUD de Defesa
+              Positioned(
+                top: 40, left: 20, right: 20,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 30), onPressed: () => Navigator.pop(context)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.redAccent, width: 2),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.gpp_maybe, color: Colors.redAccent, size: 22),
+                          const SizedBox(width: 10),
+                          Text(
+                            "PROTOCOLO DE DEFESA ATIVO",
+                            style: GoogleFonts.orbitron(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 48),
+                  ],
+                ),
+              ),
+
+              // Legendas de IA
+              Positioned(
+                bottom: 80, left: 40, right: 40,
+                child: _subtitle.isNotEmpty ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                  decoration: BoxDecoration(
+                    color: Colors.black87,
+                    border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    _subtitle,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.vt323(color: Colors.redAccent, fontSize: 20),
+                  ),
+                ) : const SizedBox.shrink(),
+              ),
+
+              if (_cameraError)
+                Container(color: Colors.black, child: const Center(child: Text("ERRO CRÍTICO: CÂMERA OFFLINE", style: TextStyle(color: Colors.red)))),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class LaserPainter extends CustomPainter {
+  final Offset start;
+  final Offset end;
+  LaserPainter({required this.start, required this.end});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.redAccent
+      ..strokeWidth = 4
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+
+    final innerPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 1.5;
+
+    canvas.drawLine(start, end, paint);
+    canvas.drawLine(start, end, innerPaint);
+
+    // Efeito de impacto
+    canvas.drawCircle(end, 10, paint);
+    canvas.drawCircle(end, 5, innerPaint);
   }
 
   @override
