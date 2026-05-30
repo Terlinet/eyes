@@ -1328,6 +1328,14 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
         });
       }
     });
+    _tts.setErrorHandler((msg) {
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+          _subtitle = "";
+        });
+      }
+    });
   }
 
   Future<void> _speakIntro() async {
