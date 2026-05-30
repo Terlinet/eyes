@@ -1324,7 +1324,7 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
       if (mounted) {
         setState(() {
           _isSpeaking = false;
-          _subtitle = ""; // Limpa o texto ao terminar de falar
+          _subtitle = ""; // Limpa o texto ao terminar de falar para o card sumir
         });
       }
     });
