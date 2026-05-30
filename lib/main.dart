@@ -1297,6 +1297,7 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
   bool _isFrontCamera = true;
   bool _isSwitchingCamera = false;
   bool _isDefenseActive = false;
+  Offset? _lockOnPoint;
 
   List<Offset> polygonNormalized = [
     const Offset(0.2, 0.2), const Offset(0.8, 0.2),
@@ -1354,9 +1355,9 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
     } catch (e) {
       debugPrint("Erro IA Defense Intro: $e");
     }
-    const text = "TerlineT operacional. Sistema de defesa ativo. Mira calibrada para neutralização de alvos humanoides de alto risco. "
-                 "Qualquer presença humanoide detectada no perímetro será eliminada com precisão máxima. "
-                 "Ajuste a zona de exclusão agora.";
+    const text = "TerlineT operacional. Sistema de defesa ativo. Mira calibrada para neutralização de alvos de alto risco. "
+                 "Qualquer presença detectada no perímetro será eliminada com precisão máxima. "
+                 "Ajuste a zona.";
     setState(() => _subtitle = text);
     await _tts.speak(text);
   }
@@ -1395,11 +1396,48 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
 
   void _onPoseDetected(JSString landmarksJson) {
     if (!mounted) return;
-    final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
-    setState(() {
-      _landmarks = newLandmarks;
-    });
-    _checkInvasion(newLandmarks);
+    try {
+      final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
+      setState(() {
+        _landmarks = newLandmarks;
+      });
+      _checkInvasion(newLandmarks);
+    } catch (e) {
+      debugPrint("Erro Pose Detection Defense: $e");
+    }
+  }
+
+  Widget _buildInteractiveTieFighter() {
+    Offset lookAt = const Offset(0.5, 0.5);
+    if (_landmarks.isNotEmpty) {
+      final nose = _landmarks[0];
+      if (nose['visibility'] > 0.5) {
+        double x = _isFrontCamera ? 1.0 - (nose['x'] as num).toDouble() : (nose['x'] as num).toDouble();
+        double y = (nose['y'] as num).toDouble();
+        lookAt = Offset(x, y);
+      }
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          "DEFENSE UNIT",
+          style: GoogleFonts.orbitron(
+            color: Colors.redAccent,
+            fontSize: 8,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+            shadows: [
+              Shadow(color: Colors.red.withOpacity(0.7), blurRadius: 8),
+            ],
+          ),
+        ),
+        const SizedBox(height: 5),
+        TieFighter(
+          lookAt: lookAt,
+        ),
+      ],
+    );
   }
 
   void _startDefense() {
@@ -1413,57 +1451,32 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
   void _checkInvasion(List<dynamic> landmarks) {
     if (!_isDefenseActive || landmarks.isEmpty) return;
 
-    // Filtra apenas pontos com alta confiança
-    final highConfidence = landmarks.where((lm) => (lm['visibility'] as num) > 0.7).toList();
-
-    // Exige pelo menos 5 pontos confiáveis para considerar um humanoide
-    if (highConfidence.length < 5) return;
-
-    // Pontos-chave para validação estrutural (nariz, ombros, quadril central)
-    final nose = landmarks[0];
-    final leftShoulder = landmarks[11];
-    final rightShoulder = landmarks[12];
-    final leftHip = landmarks[23];
-    final rightHip = landmarks[24];
-
-    // Verifica se os pontos-chave têm alta confiança
-    if (nose['visibility'] < 0.7 ||
-        leftShoulder['visibility'] < 0.7 ||
-        rightShoulder['visibility'] < 0.7) return;
-
-    // Conta quantos desses pontos-chave estão dentro do polígono
-    int pointsInside = 0;
-    final targets = [nose, leftShoulder, rightShoulder, leftHip, rightHip];
-
-    for (var lm in targets) {
-      if (lm['visibility'] < 0.5) continue;
-      double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
-      double y = (lm['y'] as num).toDouble();
-
-      if (_isPointInPolygon(Offset(x, y), polygonNormalized)) {
-        pointsInside++;
+    // Filtra pontos de alta visibilidade dentro da zona para mira precisa
+    List<Offset> targetsInZone = [];
+    for (var lm in landmarks) {
+      if ((lm['visibility'] as num) > 0.75) {
+        double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
+        double y = (lm['y'] as num).toDouble();
+        Offset p = Offset(x, y);
+        if (_isPointInPolygon(p, polygonNormalized)) {
+          targetsInZone.add(p);
+        }
       }
     }
 
-    // Só dispara se pelo menos 3 pontos-chave estiverem dentro da zona
-    if (pointsInside >= 3) {
-      // Calcula o centro desses pontos para mirar
-      double avgX = 0, avgY = 0;
-      int count = 0;
-      for (var lm in targets) {
-        if (lm['visibility'] < 0.5) continue;
-        double x = _isFrontCamera ? 1.0 - (lm['x'] as num).toDouble() : (lm['x'] as num).toDouble();
-        double y = (lm['y'] as num).toDouble();
-        if (_isPointInPolygon(Offset(x, y), polygonNormalized)) {
-          avgX += x;
-          avgY += y;
-          count++;
-        }
+    if (targetsInZone.isNotEmpty) {
+      // Calcula o centro de massa dos pontos detectados na zona para um disparo preciso no esqueleto
+      double sumX = 0, sumY = 0;
+      for (var p in targetsInZone) {
+        sumX += p.dx;
+        sumY += p.dy;
       }
-      if (count > 0) {
-        Offset target = Offset(avgX / count, avgY / count);
-        _fireLaser(target);
-      }
+      Offset target = Offset(sumX / targetsInZone.length, sumY / targetsInZone.length);
+
+      setState(() => _lockOnPoint = target);
+      _fireLaser(target);
+    } else {
+      if (_lockOnPoint != null) setState(() => _lockOnPoint = null);
     }
   }
 
@@ -1474,12 +1487,10 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
       _laserTarget = targetNormalized;
     });
 
-    // Toca o som do laser
-    debugPrint("Laser firing sound requested...");
     _playSound("assets/laser.mp3".toJS);
 
-    // Cooldown maior: 800ms
-    _laserTimer = Timer(const Duration(milliseconds: 800), () {
+    // Cooldown otimizado para 400ms: equilíbrio entre cadência de tiro e realismo
+    _laserTimer = Timer(const Duration(milliseconds: 400), () {
       if (mounted) setState(() => _laserTarget = null);
     });
   }
@@ -1516,6 +1527,13 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
             children: [
               if (_landmarks.isNotEmpty) CustomPaint(painter: PosePainter(_landmarks, _isFrontCamera), size: Size.infinite),
 
+              // UI do Caça TIE
+              Positioned(
+                top: 150,
+                left: 20,
+                child: _buildInteractiveTieFighter(),
+              ),
+
               // Polígono de Defesa
               GestureDetector(
                 onPanStart: (details) {
@@ -1542,8 +1560,30 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
                 CustomPaint(
                   size: Size.infinite,
                   painter: LaserPainter(
-                    start: const Offset(70, 220), // Alinhado com o Caça TIE no topo esquerdo
+                    start: const Offset(70, 240), // Alinhado com o centro do Caça TIE adicionado
                     end: Offset(_laserTarget!.dx * size.width, _laserTarget!.dy * size.height),
+                  ),
+                ),
+
+              // Lock-on Visual
+              if (_lockOnPoint != null)
+                Positioned(
+                  left: _lockOnPoint!.dx * size.width - 20,
+                  top: _lockOnPoint!.dy * size.height - 20,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.redAccent, width: 2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 4,
+                        height: 4,
+                        color: Colors.redAccent,
+                      ),
+                    ),
                   ),
                 ),
 
