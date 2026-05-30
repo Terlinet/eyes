@@ -421,8 +421,8 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
 
   Future<void> _initTts() async {
     await _tts.setLanguage("pt-BR");
-    await _tts.setSpeechRate(1.0); // Aumentado de 0.8 para 1.0 para fala mais rápida
-    await _tts.setPitch(1.2);
+    await _tts.setSpeechRate(1.0); // Máxima velocidade natural
+    await _tts.setPitch(1.0); // Tom mais humano e equilibrado
 
     try {
       var voices = await _tts.getVoices;
@@ -1348,8 +1348,8 @@ class _HelperAssistancePageState extends State<HelperAssistancePage> with Ticker
 
   Future<void> _initTts() async {
     await _tts.setLanguage("pt-BR");
-    await _tts.setSpeechRate(0.9);
-    await _tts.setPitch(1.1);
+    await _tts.setSpeechRate(1.0); // Aumentado para dar mais energia
+    await _tts.setPitch(1.0); // Tom natural de assistência
     _tts.setStartHandler(() => setState(() => _isSpeaking = true));
     _tts.setCompletionHandler(() => setState(() => _isSpeaking = false));
   }
