@@ -193,14 +193,7 @@ class _HomePageState extends State<HomePage> {
         lookAt = Offset(x, y);
       }
     }
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        CyberEye(lookAt: lookAt),
-        const SizedBox(width: 20),
-        CyberEye(lookAt: lookAt),
-      ],
-    );
+    return CyberEyes(lookAt: lookAt);
   }
 
   @override
@@ -1084,43 +1077,36 @@ class PolygonPainter extends CustomPainter {
   bool shouldRepaint(PolygonPainter oldDelegate) => true;
 }
 
-class CyberEye extends StatefulWidget {
+enum EyeEmotion { neutral, happy, angry, surprised, suspicious }
+
+class CyberEyes extends StatefulWidget {
   final Offset lookAt;
-  const CyberEye({super.key, required this.lookAt});
+  const CyberEyes({super.key, required this.lookAt});
 
   @override
-  State<CyberEye> createState() => _CyberEyeState();
+  State<CyberEyes> createState() => _CyberEyesState();
 }
 
-class _CyberEyeState extends State<CyberEye> with TickerProviderStateMixin {
+class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
   late AnimationController _blinkController;
   late AnimationController _pupilController;
-  late AnimationController _smileController;
+  late AnimationController _emotionController;
+  EyeEmotion _currentEmotion = EyeEmotion.neutral;
+  final math.Random _random = math.Random();
 
   @override
   void initState() {
     super.initState();
-    _blinkController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 150),
-    );
-
-    _pupilController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat(reverse: true);
-
-    _smileController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
+    _blinkController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+    _pupilController = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
+    _emotionController = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
 
     _scheduleNextBlink();
-    _scheduleNextSmile();
+    _scheduleNextEmotion();
   }
 
   void _scheduleNextBlink() {
-    Future.delayed(Duration(seconds: 3 + math.Random().nextInt(5)), () {
+    Future.delayed(Duration(seconds: 3 + _random.nextInt(5)), () {
       if (mounted) {
         _blinkController.forward().then((_) {
           if (mounted) _blinkController.reverse();
@@ -1130,15 +1116,21 @@ class _CyberEyeState extends State<CyberEye> with TickerProviderStateMixin {
     });
   }
 
-  void _scheduleNextSmile() {
-    Future.delayed(Duration(seconds: 10 + math.Random().nextInt(10)), () {
+  void _scheduleNextEmotion() {
+    Future.delayed(Duration(seconds: 5 + _random.nextInt(10)), () {
       if (mounted) {
-        _smileController.forward().then((_) {
+        final nextEmotion = EyeEmotion.values[_random.nextInt(EyeEmotion.values.length)];
+        setState(() => _currentEmotion = nextEmotion);
+        _emotionController.forward(from: 0).then((_) {
           Future.delayed(const Duration(seconds: 4), () {
-            if (mounted) _smileController.reverse();
+            if (mounted) {
+              _emotionController.reverse().then((_) {
+                if (mounted) setState(() => _currentEmotion = EyeEmotion.neutral);
+              });
+            }
           });
         });
-        _scheduleNextSmile();
+        _scheduleNextEmotion();
       }
     });
   }
@@ -1147,116 +1139,189 @@ class _CyberEyeState extends State<CyberEye> with TickerProviderStateMixin {
   void dispose() {
     _blinkController.dispose();
     _pupilController.dispose();
-    _smileController.dispose();
+    _emotionController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Suaviza o movimento e limita o alcance da íris
-    double dx = (widget.lookAt.dx - 0.5).clamp(-0.4, 0.4) * 60;
-    double dy = (widget.lookAt.dy - 0.5).clamp(-0.4, 0.4) * 60;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        CyberEye(
+          isLeft: true,
+          lookAt: widget.lookAt,
+          blinkController: _blinkController,
+          pupilController: _pupilController,
+          emotionController: _emotionController,
+          currentEmotion: _currentEmotion,
+        ),
+        const SizedBox(width: 30),
+        CyberEye(
+          isLeft: false,
+          lookAt: widget.lookAt,
+          blinkController: _blinkController,
+          pupilController: _pupilController,
+          emotionController: _emotionController,
+          currentEmotion: _currentEmotion,
+        ),
+      ],
+    );
+  }
+}
+
+class CyberEye extends StatelessWidget {
+  final bool isLeft;
+  final Offset lookAt;
+  final AnimationController blinkController;
+  final AnimationController pupilController;
+  final AnimationController emotionController;
+  final EyeEmotion currentEmotion;
+
+  const CyberEye({
+    super.key,
+    required this.isLeft,
+    required this.lookAt,
+    required this.blinkController,
+    required this.pupilController,
+    required this.emotionController,
+    required this.currentEmotion,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    double dx = (lookAt.dx - 0.5).clamp(-0.4, 0.4) * 60;
+    double dy = (lookAt.dy - 0.5).clamp(-0.4, 0.4) * 60;
 
     return Container(
-      width: 160,
-      height: 160,
+      width: 160, height: 160,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF27AE60).withOpacity(0.1),
-            blurRadius: 30,
-            spreadRadius: 5,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: const Color(0xFF27AE60).withOpacity(0.1), blurRadius: 30, spreadRadius: 5)],
       ),
       child: ClipOval(
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Esclera (Fundo do olho)
-            Container(
-              color: const Color(0xFF0F172A),
-            ),
-            // Íris e Pupila com Efeito 3D
+            Container(color: const Color(0xFF0F172A)),
+            // Íris e Pupila
             Transform(
-              transform: Matrix4.identity()
-                ..setEntry(3, 2, 0.002)
-                ..rotateY(dx * 0.005)
-                ..rotateX(-dy * 0.005)
-                ..translate(dx, dy),
+              transform: Matrix4.identity()..setEntry(3, 2, 0.002)..rotateY(dx * 0.005)..rotateX(-dy * 0.005)..translate(dx, dy),
               child: AnimatedBuilder(
-                animation: _pupilController,
+                animation: pupilController,
                 builder: (context, child) {
-                  return Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const RadialGradient(
-                        colors: [
-                          Color(0xFF2ecc71),
-                          Color(0xFF27AE60),
-                          Colors.black,
-                        ],
-                        stops: [0.2, 0.8, 1.0],
-                      ),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 32 + (6 * _pupilController.value),
-                        height: 32 + (6 * _pupilController.value),
-                        decoration: const BoxDecoration(
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Íris Maior (Aumentada de 90 para 115)
+                      Container(
+                        width: 115, height: 115,
+                        decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.black,
+                          gradient: const RadialGradient(
+                            colors: [Color(0xFF55efc4), Color(0xFF27AE60), Colors.black],
+                            stops: [0.2, 0.7, 1.0]
+                          ),
+                          boxShadow: [
+                            BoxShadow(color: const Color(0xFF27AE60).withOpacity(0.3), blurRadius: 10, spreadRadius: 2)
+                          ],
                         ),
                       ),
-                    ),
+                      // Pupila Dinâmica
+                      Container(
+                        width: 40 + (8 * pupilController.value),
+                        height: 40 + (8 * pupilController.value),
+                        decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black),
+                      ),
+                      // Brilho de Vida (Catchlight Principal)
+                      Positioned(
+                        top: 25, left: 30,
+                        child: Container(
+                          width: 20, height: 20,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.3),
+                          ),
+                        ),
+                      ),
+                      // Brilho Secundário (Sparkle de Carisma)
+                      Positioned(
+                        bottom: 35, right: 35,
+                        child: Container(
+                          width: 8, height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.2),
+                          ),
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
             ),
-            // Reflexo de Luz
-            Positioned(
-              top: 45,
-              left: 55,
-              child: Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.2),
-                ),
-              ),
-            ),
-            // Pálpebras (Blink e Smile)
+            // Pálpebras Animadas
             AnimatedBuilder(
-              animation: Listenable.merge([_blinkController, _smileController]),
+              animation: Listenable.merge([blinkController, emotionController]),
               builder: (context, child) {
-                return Stack(
-                  children: [
-                    // Pálpebra Superior (Desce no blink e um pouco no sorriso)
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: Container(
-                        height: (80 * _blinkController.value) + (15 * _smileController.value),
-                        color: const Color(0xFF1E293B),
-                      ),
-                    ),
-                    // Pálpebra Inferior (Sobe no blink e muito no sorriso)
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Container(
-                        height: (80 * _blinkController.value) + (50 * _smileController.value),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(100 * _smileController.value),
+                double val = emotionController.value;
+                double topEyelidHeight = 0;
+                double bottomEyelidHeight = 0;
+                double topRotation = 0;
+                double eyeScale = 1.0;
+
+                switch (currentEmotion) {
+                  case EyeEmotion.happy:
+                    bottomEyelidHeight = 50 * val;
+                    break;
+                  case EyeEmotion.angry:
+                    topEyelidHeight = 45 * val;
+                    // Inverte a inclinação entre olho esquerdo e direito
+                    topRotation = (isLeft ? 0.25 : -0.25) * val;
+                    bottomEyelidHeight = 20 * val;
+                    break;
+                  case EyeEmotion.surprised:
+                    eyeScale = 1.0 + (0.15 * val);
+                    break;
+                  case EyeEmotion.suspicious:
+                    topEyelidHeight = 40 * val;
+                    bottomEyelidHeight = 40 * val;
+                    break;
+                  default: break;
+                }
+
+                if (blinkController.value > 0) {
+                  topEyelidHeight = 80 * blinkController.value;
+                  bottomEyelidHeight = 80 * blinkController.value;
+                  topRotation = 0;
+                }
+
+                return Transform.scale(
+                  scale: eyeScale,
+                  child: Stack(
+                    children: [
+                      Align(
+                        alignment: Alignment.topCenter,
+                        child: Transform.rotate(
+                          angle: topRotation,
+                          child: Container(
+                            height: (80 * blinkController.value + topEyelidHeight).clamp(0.0, 80.0),
+                            color: const Color(0xFF1E293B),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Container(
+                          height: (80 * blinkController.value + bottomEyelidHeight).clamp(0.0, 80.0),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E293B),
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(currentEmotion == EyeEmotion.happy ? 100 * val : 0)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
