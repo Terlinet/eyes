@@ -13,3 +13,9 @@
 .externalNativeBuild
 .cxx
 local.properties
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+/dev/benchmarks/test_apps/complex_layout/.metadata
+/dev/benchmarks/test_apps/complex_layout/.packages
+/dev/benchmarks/test_apps/complex_layout/pubspec.lock
