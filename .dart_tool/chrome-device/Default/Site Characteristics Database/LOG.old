@@ -1,2 +1,18 @@
-2026/05/27-10:35:49.949 1068 Creating DB C:\Users\tertu\AppData\Local\Temp\flutter_tools.4e47edb8\flutter_tools_chrome_device.9d08ecd6\Default\Site Characteristics Database since it was missing.
-2026/05/27-10:35:50.563 1068 Reusing MANIFEST C:\Users\tertu\AppData\Local\Temp\flutter_tools.4e47edb8\flutter_tools_chrome_device.9d08ecd6\Default\Site Characteristics Database/MANIFEST-000001
+2026/06/01-18:57:15.671 340c Reusing MANIFEST C:\Users\tertu\AppData\Local\Temp\flutter_tools.1acd1e88\flutter_tools_chrome_device.bbfb2136\Default\Site Characteristics Database/MANIFEST-000001
+2026/06/01-18:57:15.672 3cf8 Compacting 13@0 + 0@1 files
+2026/06/01-18:57:15.678 3cf8 Generated table #48@0: 3 keys, 262 bytes
+2026/06/01-18:57:15.678 3cf8 Compacted 13@0 + 0@1 files => 262 bytes
+2026/06/01-18:57:15.680 3cf8 compacted to: files[ 0 1 0 0 0 0 0 ]
+2026/06/01-18:57:15.681 3cf8 Delete type=2 #4
+2026/06/01-18:57:15.681 3cf8 Delete type=2 #6
+2026/06/01-18:57:15.681 3cf8 Delete type=2 #11
+2026/06/01-18:57:15.681 3cf8 Delete type=2 #17
+2026/06/01-18:57:15.681 3cf8 Delete type=2 #24
+2026/06/01-18:57:15.681 3cf8 Delete type=2 #32
+2026/06/01-18:57:15.681 3cf8 Delete type=2 #39
+2026/06/01-18:57:15.682 3cf8 Delete type=2 #40
+2026/06/01-18:57:15.682 3cf8 Delete type=2 #41
+2026/06/01-18:57:15.682 3cf8 Delete type=2 #42
+2026/06/01-18:57:15.682 3cf8 Delete type=2 #43
+2026/06/01-18:57:15.682 3cf8 Delete type=2 #44
+2026/06/01-18:57:15.682 3cf8 Delete type=2 #45

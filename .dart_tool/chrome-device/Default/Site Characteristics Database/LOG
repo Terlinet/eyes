@@ -1,3 +1,45 @@
-2026/05/27-10:39:15.314 6d8 Reusing MANIFEST C:\Users\tertu\AppData\Local\Temp\flutter_tools.d6c1de2e\flutter_tools_chrome_device.8d556559\Default\Site Characteristics Database/MANIFEST-000001
-2026/05/27-10:39:15.315 6d8 Recovering log #3
-2026/05/27-10:39:15.315 6d8 Reusing old log C:\Users\tertu\AppData\Local\Temp\flutter_tools.d6c1de2e\flutter_tools_chrome_device.8d556559\Default\Site Characteristics Database/000003.log 
+2026/06/01-18:58:57.945 3840 Reusing MANIFEST C:\Users\tertu\AppData\Local\Temp\flutter_tools.62734e3e\flutter_tools_chrome_device.87a25722\Default\Site Characteristics Database/MANIFEST-000001
+2026/06/01-18:58:57.948 3840 Recovering log #3
+2026/06/01-18:58:57.948 3840 Level-0 table #50: started
+2026/06/01-18:58:57.955 3840 Level-0 table #50: 229 bytes OK
+2026/06/01-18:58:57.956 3840 Recovering log #6
+2026/06/01-18:58:57.956 3840 Level-0 table #51: started
+2026/06/01-18:58:57.968 3840 Level-0 table #51: 408 bytes OK
+2026/06/01-18:58:57.968 3840 Recovering log #10
+2026/06/01-18:58:57.968 3840 Level-0 table #52: started
+2026/06/01-18:58:57.979 3840 Level-0 table #52: 171 bytes OK
+2026/06/01-18:58:57.979 3840 Recovering log #16
+2026/06/01-18:58:57.979 3840 Level-0 table #53: started
+2026/06/01-18:58:57.984 3840 Level-0 table #53: 171 bytes OK
+2026/06/01-18:58:57.984 3840 Recovering log #23
+2026/06/01-18:58:57.984 3840 Level-0 table #54: started
+2026/06/01-18:58:57.989 3840 Level-0 table #54: 171 bytes OK
+2026/06/01-18:58:57.989 3840 Recovering log #31
+2026/06/01-18:58:57.989 3840 Level-0 table #55: started
+2026/06/01-18:58:57.994 3840 Level-0 table #55: 200 bytes OK
+2026/06/01-18:58:57.994 3840 Recovering log #47
+2026/06/01-18:58:57.994 3840 Reusing old log C:\Users\tertu\AppData\Local\Temp\flutter_tools.62734e3e\flutter_tools_chrome_device.87a25722\Default\Site Characteristics Database/000047.log 
+2026/06/01-18:58:57.997 3840 Delete type=0 #3
+2026/06/01-18:58:57.997 3840 Delete type=2 #4
+2026/06/01-18:58:57.997 3840 Delete type=2 #6
+2026/06/01-18:58:57.997 3840 Delete type=0 #6
+2026/06/01-18:58:57.997 3840 Delete type=0 #10
+2026/06/01-18:58:57.997 3840 Delete type=2 #11
+2026/06/01-18:58:57.997 3840 Delete type=0 #16
+2026/06/01-18:58:57.997 3840 Delete type=2 #17
+2026/06/01-18:58:57.997 3840 Delete type=0 #23
+2026/06/01-18:58:57.997 3840 Delete type=2 #24
+2026/06/01-18:58:57.997 3840 Delete type=0 #31
+2026/06/01-18:58:57.997 3840 Delete type=2 #32
+2026/06/01-18:58:57.997 3840 Delete type=2 #39
+2026/06/01-18:58:58.000 3e40 Compacting 6@0 + 1@1 files
+2026/06/01-18:58:58.005 3e40 Generated table #56@0: 3 keys, 262 bytes
+2026/06/01-18:58:58.005 3e40 Compacted 6@0 + 1@1 files => 262 bytes
+2026/06/01-18:58:58.007 3e40 compacted to: files[ 0 1 0 0 0 0 0 ]
+2026/06/01-18:58:58.008 3e40 Delete type=2 #48
+2026/06/01-18:58:58.008 3e40 Delete type=2 #50
+2026/06/01-18:58:58.008 3e40 Delete type=2 #51
+2026/06/01-18:58:58.008 3e40 Delete type=2 #52
+2026/06/01-18:58:58.008 3e40 Delete type=2 #53
+2026/06/01-18:58:58.008 3e40 Delete type=2 #54
+2026/06/01-18:58:58.008 3e40 Delete type=2 #55
