@@ -24,7 +24,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web
-        run: flutter build web --release --base-href /eyes/
+        run: flutter build web --release --base-href /eyes/ --no-wasm-dry-run
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
