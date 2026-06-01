@@ -39,6 +39,9 @@ external void _setSpeechCallback(JSFunction callback);
 @JS('playSound')
 external void _playSound(JSString soundPath);
 
+@JS('window.open')
+external void _openUrl(JSString url, [JSString? target]);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const TerlineTEyesApp());
@@ -285,6 +288,13 @@ class _HomePageState extends State<HomePage> {
                             color: Colors.redAccent,
                             description: "Protocolo de defesa ativa com disparos de laser automáticos.",
                           ),
+                          _buildFeatureCard(
+                            icon: Icons.add_chart,
+                            title: "COUNTER",
+                            color: Colors.orangeAccent,
+                            description: "Módulo externo de contagem e estatísticas avançadas.",
+                            onTap: () => _openUrl("https://terlinet.github.io/counter/".toJS, "_self".toJS),
+                          ),
                         ],
                       ),
                     ),
@@ -368,83 +378,99 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildFeatureCard({required IconData icon, required String title, required String description, Color color = const Color(0xFF27AE60)}) {
-    return Container(
-      width: 260,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(height: 15),
-          Text(title, style: GoogleFonts.orbitron(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2)),
-          const SizedBox(height: 10),
-          Text(description,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.5)),
-          if (title == "HELPER ASSIST") ...[
+  Widget _buildFeatureCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    Color color = const Color(0xFF27AE60),
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 260,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 32),
             const SizedBox(height: 15),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.cyanAccent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
+            Text(title, style: GoogleFonts.orbitron(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2)),
+            const SizedBox(height: 10),
+            Text(description,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.5)),
+            if (onTap != null && title == "COUNTER") ...[
+              const SizedBox(height: 15),
+              Text(
+                "CLIQUE PARA ACESSAR",
+                style: GoogleFonts.orbitron(color: color, fontSize: 9, fontWeight: FontWeight.bold),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.touch_app, color: Colors.cyanAccent, size: 12),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "TOQUE NO CUBO NO CANTO SUPERIOR ESQUERDO PARA ATIVAR",
-                      style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          if (title == "DEFENSE") ...[
-            const SizedBox(height: 15),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.touch_app, color: Colors.redAccent, size: 12),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "TOQUE NO CAÇA TIE ABAIXO DO HELPER PARA ATIVAR",
-                          style: GoogleFonts.orbitron(color: Colors.redAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
-                        ),
+            ],
+            if (title == "HELPER ASSIST") ...[
+              const SizedBox(height: 15),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.cyanAccent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.touch_app, color: Colors.cyanAccent, size: 12),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "TOQUE NO CUBO NO CANTO SUPERIOR ESQUERDO PARA ATIVAR",
+                        style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
                       ),
-                    ],
-                  ),
-                  const Divider(color: Colors.white10, height: 10),
-                  Text(
-                    "* SIMULAÇÃO FUTURISTA INTERATIVA *",
-                    style: GoogleFonts.orbitron(color: Colors.white38, fontSize: 7, fontWeight: FontWeight.bold),
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
+            if (title == "DEFENSE") ...[
+              const SizedBox(height: 15),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.touch_app, color: Colors.redAccent, size: 12),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "TOQUE NO CAÇA TIE ABAIXO DO HELPER PARA ATIVAR",
+                            style: GoogleFonts.orbitron(color: Colors.redAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(color: Colors.white10, height: 10),
+                    Text(
+                      "* SIMULAÇÃO FUTURISTA INTERATIVA *",
+                      style: GoogleFonts.orbitron(color: Colors.white38, fontSize: 7, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
