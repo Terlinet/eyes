@@ -64,6 +64,8 @@ class TerlineTEyesApp extends StatelessWidget {
   }
 }
 
+// --- HomePage ---
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -519,6 +521,8 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+// --- MonitorPage ---
+
 class MonitorPage extends StatefulWidget {
   const MonitorPage({super.key});
 
@@ -630,6 +634,32 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     _checkInvasion(newLandmarks);
   }
 
+  Widget _buildInteractiveCube() {
+    Offset lookAt = const Offset(0.5, 0.5);
+    if (_landmarks.isNotEmpty) {
+      final nose = _landmarks[0];
+      if (nose['visibility'] > 0.5) {
+        double x = _isFrontCamera ? 1.0 - (nose['x'] as num).toDouble() : (nose['x'] as num).toDouble();
+        double y = (nose['y'] as num).toDouble();
+        lookAt = Offset(x, y);
+      }
+    }
+    return CyberCube(lookAt: lookAt);
+  }
+
+  Widget _buildInteractiveTieFighter() {
+    Offset lookAt = const Offset(0.5, 0.5);
+    if (_landmarks.isNotEmpty) {
+      final nose = _landmarks[0];
+      if (nose['visibility'] > 0.5) {
+        double x = _isFrontCamera ? 1.0 - (nose['x'] as num).toDouble() : (nose['x'] as num).toDouble();
+        double y = (nose['y'] as num).toDouble();
+        lookAt = Offset(x, y);
+      }
+    }
+    return TieFighter(lookAt: lookAt);
+  }
+
   void _startMonitoring() {
     if (_isMonitoringActive || _countdown > 0) return;
     setState(() { _countdown = 5; });
@@ -655,7 +685,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     if (anyPartInside) _processAlert();
   }
 
-  Widget _buildCyberCube() {
+  Widget _buildCyberCubeHUD() {
     final cubeColor = _isAlerting ? Colors.red : const Color(0xFF27AE60);
     return AnimatedBuilder(
       animation: Listenable.merge([_pulseController, _rotationController]),
@@ -730,7 +760,7 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
                 child: CustomPaint(size: Size.infinite, painter: PolygonPainter(polygon: polygonPixels, isAlerting: _isAlerting)),
               ),
               Positioned(top: 20, left: 20, child: Column(mainAxisSize: MainAxisSize.min, children: [_buildInteractiveCube(), const SizedBox(height: 10), _buildInteractiveTieFighter()])),
-              Positioned(bottom: 100, left: 0, right: 0, child: Center(child: _isSpeaking ? Column(mainAxisSize: MainAxisSize.min, children: [_buildCyberCube(), const SizedBox(height: 20), Transform.translate(offset: Offset(_glitchX, _glitchY), child: Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), margin: const EdgeInsets.symmetric(horizontal: 40), width: double.infinity, decoration: BoxDecoration(color: _isGlitching ? Colors.green.withOpacity(0.5) : Colors.black87, borderRadius: BorderRadius.circular(10), border: Border.all(color: _isAlerting ? Colors.red : const Color(0xFF27AE60))), child: Column(children: [Text(_isAlerting ? "ALERTA" : "COMUNICAÇÃO", style: GoogleFonts.vt323(color: _isAlerting ? Colors.red : const Color(0xFF27AE60))), const Divider(color: Colors.white24), Text(_subtitle, style: GoogleFonts.vt323(color: Colors.white, fontSize: 18), textAlign: TextAlign.center)])))]) : const SizedBox.shrink())),
+              Positioned(bottom: 100, left: 0, right: 0, child: Center(child: _isSpeaking ? Column(mainAxisSize: MainAxisSize.min, children: [_buildCyberCubeHUD(), const SizedBox(height: 20), Transform.translate(offset: Offset(_glitchX, _glitchY), child: Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), margin: const EdgeInsets.symmetric(horizontal: 40), width: double.infinity, decoration: BoxDecoration(color: _isGlitching ? Colors.green.withOpacity(0.5) : Colors.black87, borderRadius: BorderRadius.circular(10), border: Border.all(color: _isAlerting ? Colors.red : const Color(0xFF27AE60))), child: Column(children: [Text(_isAlerting ? "ALERTA" : "COMUNICAÇÃO", style: GoogleFonts.vt323(color: _isAlerting ? Colors.red : const Color(0xFF27AE60))), const Divider(color: Colors.white24), Text(_subtitle, style: GoogleFonts.vt323(color: Colors.white, fontSize: 18), textAlign: TextAlign.center)])))]) : const SizedBox.shrink())),
               Positioned(top: 40, left: 20, right: 20, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)), Row(children: [if (!_isMonitoringActive && _countdown == 0) ElevatedButton.icon(onPressed: _startMonitoring, icon: const Icon(Icons.play_arrow), label: const Text("INICIAR"), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF27AE60))), const SizedBox(width: 10), IconButton(icon: const Icon(Icons.flip_camera_ios, color: Colors.white), onPressed: _isSwitchingCamera ? null : _switchCamera)]), Container(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20), border: Border.all(color: _isAlerting ? Colors.red : Colors.green)), child: Text(_isAlerting ? "ALERTA" : "SEGURO", style: const TextStyle(color: Colors.white, fontSize: 12)))]))
             ],
           );
@@ -739,6 +769,8 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
     );
   }
 }
+
+// --- DefensePage ---
 
 class DefensePage extends StatefulWidget {
   const DefensePage({super.key});
@@ -827,6 +859,8 @@ class _DefensePageState extends State<DefensePage> with TickerProviderStateMixin
   }
 }
 
+// --- HelperAssistancePage ---
+
 class HelperAssistancePage extends StatefulWidget {
   const HelperAssistancePage({super.key});
   @override State<HelperAssistancePage> createState() => _HelperAssistancePageState();
@@ -872,6 +906,8 @@ class _HelperAssistancePageState extends State<HelperAssistancePage> with Ticker
     );
   }
 }
+
+// --- Components and Painters ---
 
 class MatrixRain extends StatefulWidget {
   const MatrixRain({super.key});
