@@ -1395,10 +1395,7 @@ class MouthPainter extends CustomPainter {
         break;
 
       case EyeEmotion.silly:
-        // Boca aberta com língua pra fora
-        path.addOval(Rect.fromCenter(center: Offset(centerX, centerY), width: 40 * progress, height: 25 * progress));
-        canvas.drawPath(path, cavityPaint);
-
+        // Apenas a língua aparece
         final tonguePath = Path();
         tonguePath.moveTo(centerX - 10, centerY + 5);
         tonguePath.quadraticBezierTo(centerX, centerY + 30 * progress, centerX + 10, centerY + 5);
@@ -1430,12 +1427,13 @@ class MouthPainter extends CustomPainter {
         break;
 
       default:
+        // No neutro, desenha uma linha preta bem fina ou nada?
+        // Vamos manter a linha preta mas sem o drawPath genérico no final.
         path.moveTo(centerX - 20, centerY);
         path.lineTo(centerX + 20, centerY);
+        canvas.drawPath(path, strokePaint);
         break;
     }
-
-    canvas.drawPath(path, strokePaint);
   }
 
   @override
