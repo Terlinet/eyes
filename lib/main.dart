@@ -1273,11 +1273,10 @@ class MouthPainter extends CustomPainter {
 
     // Brilho Neon na borda da boca
     final strokePaint = Paint()
-      ..color = Colors.white.withOpacity(0.9)
+      ..color = Colors.black
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.5
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = MaskFilter.blur(BlurStyle.solid, 2 * progress);
+      ..strokeCap = StrokeCap.round;
 
     final path = Path();
 
