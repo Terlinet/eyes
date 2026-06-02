@@ -1120,6 +1120,7 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
   late AnimationController _blinkController;
   late AnimationController _pupilController;
   late AnimationController _emotionController;
+  late AnimationController _breathingController;
   EyeEmotion _currentEmotion = EyeEmotion.neutral;
   final math.Random _random = math.Random();
   Timer? _randomEmotionTimer;
@@ -1130,6 +1131,7 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
     _blinkController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
     _pupilController = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
     _emotionController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _breathingController = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat(reverse: true);
 
     _scheduleNextBlink();
     _scheduleNextEmotion();
@@ -1187,79 +1189,89 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
     _blinkController.dispose();
     _pupilController.dispose();
     _emotionController.dispose();
+    _breathingController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                CustomPaint(size: const Size(200, 200), painter: EyeHUDPainter()),
-                CyberEye(
-                  isLeft: true,
-                  lookAt: widget.lookAt,
-                  blinkController: _blinkController,
-                  pupilController: _pupilController,
-                  emotionController: _emotionController,
-                  currentEmotion: _currentEmotion,
-                ),
-              ],
-            ),
-            const SizedBox(width: 40),
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                CustomPaint(size: const Size(200, 200), painter: EyeHUDPainter()),
-                CyberEye(
-                  isLeft: false,
-                  lookAt: widget.lookAt,
-                  blinkController: _blinkController,
-                  pupilController: _pupilController,
-                  emotionController: _emotionController,
-                  currentEmotion: _currentEmotion,
-                ),
-              ],
-            ),
-          ],
-        ),
-        // Efeito de Blush de Anime
-        AnimatedBuilder(
-          animation: _emotionController,
-          builder: (context, child) {
-            bool showBlush = _currentEmotion == EyeEmotion.love || _currentEmotion == EyeEmotion.excited;
-            return Opacity(
-              opacity: showBlush ? _emotionController.value : 0,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(2, (index) => Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 50),
-                    width: 40, height: 10,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      gradient: LinearGradient(colors: [Colors.pinkAccent.withOpacity(0.3), Colors.transparent])
-                    ),
-                  )),
-                ),
+    return AnimatedBuilder(
+      animation: _breathingController,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, 5 * math.sin(_breathingController.value * 2 * math.pi)),
+          child: child,
+        );
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  CustomPaint(size: const Size(200, 200), painter: EyeHUDPainter()),
+                  CyberEye(
+                    isLeft: true,
+                    lookAt: widget.lookAt,
+                    blinkController: _blinkController,
+                    pupilController: _pupilController,
+                    emotionController: _emotionController,
+                    currentEmotion: _currentEmotion,
+                  ),
+                ],
               ),
-            );
-          },
-        ),
-        const SizedBox(height: 20),
-        // Nova Boca Dinâmica
-        CyberMouth(
-          emotion: _currentEmotion,
-          emotionController: _emotionController,
-        ),
-      ],
+              const SizedBox(width: 40),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  CustomPaint(size: const Size(200, 200), painter: EyeHUDPainter()),
+                  CyberEye(
+                    isLeft: false,
+                    lookAt: widget.lookAt,
+                    blinkController: _blinkController,
+                    pupilController: _pupilController,
+                    emotionController: _emotionController,
+                    currentEmotion: _currentEmotion,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          // Efeito de Blush de Anime
+          AnimatedBuilder(
+            animation: _emotionController,
+            builder: (context, child) {
+              bool showBlush = _currentEmotion == EyeEmotion.love || _currentEmotion == EyeEmotion.excited;
+              return Opacity(
+                opacity: showBlush ? _emotionController.value : 0,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(2, (index) => Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 50),
+                      width: 40, height: 10,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        gradient: LinearGradient(colors: [Colors.pinkAccent.withOpacity(0.3), Colors.transparent])
+                      ),
+                    )),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          CyberMouth(
+            emotion: _currentEmotion,
+            emotionController: _emotionController,
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 }
