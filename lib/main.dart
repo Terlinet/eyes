@@ -1077,7 +1077,7 @@ class PolygonPainter extends CustomPainter {
   bool shouldRepaint(PolygonPainter oldDelegate) => true;
 }
 
-enum EyeEmotion { neutral, happy, angry, surprised, suspicious, love, sad, excited, thinking }
+enum EyeEmotion { neutral, happy, angry, surprised, suspicious, love, sad, excited, thinking, silly }
 
 class CyberEyes extends StatefulWidget {
   final Offset lookAt;
@@ -1151,22 +1151,34 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CyberEye(
-              isLeft: true,
-              lookAt: widget.lookAt,
-              blinkController: _blinkController,
-              pupilController: _pupilController,
-              emotionController: _emotionController,
-              currentEmotion: _currentEmotion,
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(size: const Size(200, 200), painter: EyeHUDPainter()),
+                CyberEye(
+                  isLeft: true,
+                  lookAt: widget.lookAt,
+                  blinkController: _blinkController,
+                  pupilController: _pupilController,
+                  emotionController: _emotionController,
+                  currentEmotion: _currentEmotion,
+                ),
+              ],
             ),
             const SizedBox(width: 40),
-            CyberEye(
-              isLeft: false,
-              lookAt: widget.lookAt,
-              blinkController: _blinkController,
-              pupilController: _pupilController,
-              emotionController: _emotionController,
-              currentEmotion: _currentEmotion,
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(size: const Size(200, 200), painter: EyeHUDPainter()),
+                CyberEye(
+                  isLeft: false,
+                  lookAt: widget.lookAt,
+                  blinkController: _blinkController,
+                  pupilController: _pupilController,
+                  emotionController: _emotionController,
+                  currentEmotion: _currentEmotion,
+                ),
+              ],
             ),
           ],
         ),
@@ -1193,10 +1205,184 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
               ),
             );
           },
-        )
+        ),
+        const SizedBox(height: 20),
+        // Nova Boca Dinâmica
+        CyberMouth(
+          emotion: _currentEmotion,
+          emotionController: _emotionController,
+        ),
       ],
     );
   }
+}
+
+class CyberMouth extends StatelessWidget {
+  final EyeEmotion emotion;
+  final AnimationController emotionController;
+
+  const CyberMouth({
+    super.key,
+    required this.emotion,
+    required this.emotionController,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: emotionController,
+      builder: (context, child) {
+        return CustomPaint(
+          size: const Size(100, 40),
+          painter: MouthPainter(
+            emotion: emotion,
+            progress: emotionController.value,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class MouthPainter extends CustomPainter {
+  final EyeEmotion emotion;
+  final double progress;
+
+  MouthPainter({required this.emotion, required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+
+    // Define a cor temática da boca baseada na emoção para combinar com os olhos
+    Color themeColor = const Color(0xFF27AE60);
+    if (emotion == EyeEmotion.love) themeColor = Colors.pinkAccent;
+    if (emotion == EyeEmotion.angry) themeColor = Colors.redAccent;
+    if (emotion == EyeEmotion.sad) themeColor = Colors.cyan;
+
+    final cavityPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [Colors.red[900]!, Colors.black],
+        center: Alignment.center,
+        radius: 1.0,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final teethPaint = Paint()..color = Colors.white;
+    final tonguePaint = Paint()..color = Colors.pinkAccent[100]!;
+
+    // Brilho Neon na borda da boca
+    final strokePaint = Paint()
+      ..color = Colors.white.withOpacity(0.9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = MaskFilter.blur(BlurStyle.solid, 2 * progress);
+
+    final path = Path();
+
+    // HUD da Boca (detalhes tecnológicos nos cantos)
+    final hudPaint = Paint()
+      ..color = themeColor.withOpacity(0.4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    // Desenha pequenos colchetes tecnológicos nos cantos
+    canvas.drawPath(
+      Path()
+        ..moveTo(centerX - 45, centerY - 10)
+        ..lineTo(centerX - 50, centerY - 10)
+        ..lineTo(centerX - 50, centerY + 10)
+        ..lineTo(centerX - 45, centerY + 10),
+      hudPaint
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(centerX + 45, centerY - 10)
+        ..lineTo(centerX + 50, centerY - 10)
+        ..lineTo(centerX + 50, centerY + 10)
+        ..lineTo(centerX + 45, centerY + 10),
+      hudPaint
+    );
+
+    switch (emotion) {
+      case EyeEmotion.happy:
+      case EyeEmotion.love:
+      case EyeEmotion.excited:
+        double openAmount = (emotion == EyeEmotion.excited ? 25 : 15) * progress;
+        path.moveTo(centerX - 35, centerY - 5);
+        path.quadraticBezierTo(centerX, centerY + openAmount, centerX + 35, centerY - 5);
+        path.quadraticBezierTo(centerX, centerY - 10 * progress, centerX - 35, centerY - 5);
+
+        canvas.drawPath(path, cavityPaint);
+
+        // Dentes superiores
+        final teethPath = Path();
+        teethPath.moveTo(centerX - 30, centerY - 4);
+        teethPath.quadraticBezierTo(centerX, centerY + 2, centerX + 30, centerY - 4);
+        teethPath.lineTo(centerX + 30, centerY - 8);
+        teethPath.lineTo(centerX - 30, centerY - 8);
+        teethPath.close();
+        canvas.save();
+        canvas.clipPath(path);
+        canvas.drawPath(teethPath, teethPaint);
+
+        // Língua (no Excited)
+        if (emotion == EyeEmotion.excited) {
+          final tonguePath = Path();
+          tonguePath.addOval(Rect.fromCenter(center: Offset(centerX, centerY + 15), width: 30, height: 20));
+          canvas.drawPath(tonguePath, tonguePaint);
+        }
+        canvas.restore();
+        break;
+
+      case EyeEmotion.silly:
+        // Boca aberta com língua pra fora
+        path.addOval(Rect.fromCenter(center: Offset(centerX, centerY), width: 40 * progress, height: 25 * progress));
+        canvas.drawPath(path, cavityPaint);
+
+        final tonguePath = Path();
+        tonguePath.moveTo(centerX - 10, centerY + 5);
+        tonguePath.quadraticBezierTo(centerX, centerY + 30 * progress, centerX + 10, centerY + 5);
+        tonguePath.close();
+
+        canvas.drawPath(tonguePath, tonguePaint);
+        break;
+
+      case EyeEmotion.surprised:
+        path.addOval(Rect.fromCenter(center: Offset(centerX, centerY), width: 30 * progress, height: 35 * progress));
+        canvas.drawPath(path, cavityPaint);
+        break;
+
+      case EyeEmotion.angry:
+      case EyeEmotion.sad:
+        path.moveTo(centerX - 30, centerY + 10 * progress);
+        path.quadraticBezierTo(centerX, centerY - 5 * progress, centerX + 30, centerY + 10 * progress);
+        if (emotion == EyeEmotion.angry) {
+          path.quadraticBezierTo(centerX, centerY + 15 * progress, centerX - 30, centerY + 10 * progress);
+          canvas.drawPath(path, cavityPaint);
+          // Dentes cerrados
+          final gritPath = Path();
+          gritPath.addRect(Rect.fromCenter(center: Offset(centerX, centerY + 2), width: 40, height: 4));
+          canvas.save();
+          canvas.clipPath(path);
+          canvas.drawPath(gritPath, teethPaint);
+          canvas.restore();
+        }
+        break;
+
+      default:
+        path.moveTo(centerX - 20, centerY);
+        path.lineTo(centerX + 20, centerY);
+        break;
+    }
+
+    canvas.drawPath(path, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(MouthPainter oldDelegate) =>
+      oldDelegate.emotion != emotion || oldDelegate.progress != progress;
 }
 
 class CyberEye extends StatelessWidget {
@@ -1357,7 +1543,28 @@ class CyberEye extends StatelessWidget {
                 return Transform.scale(
                   scale: eyeScale,
                   child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
+                      // Sobrancelha Estilizada
+                      Positioned(
+                        top: -25 - (15 * val),
+                        left: isLeft ? 10 : -10,
+                        right: isLeft ? -10 : 10,
+                        child: Transform.rotate(
+                          angle: topRotation * 1.5,
+                          child: Container(
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(color: (currentEmotion == EyeEmotion.angry ? Colors.red : const Color(0xFF27AE60)).withOpacity(0.6), blurRadius: 10, spreadRadius: 1)
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Pálpebra Superior
                       Align(
                         alignment: Alignment.topCenter,
                         child: Transform.rotate(
@@ -1371,6 +1578,7 @@ class CyberEye extends StatelessWidget {
                           ),
                         ),
                       ),
+                      // Pálpebra Inferior
                       Align(
                         alignment: Alignment.bottomCenter,
                         child: Container(
