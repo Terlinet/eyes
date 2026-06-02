@@ -1077,7 +1077,7 @@ class PolygonPainter extends CustomPainter {
   bool shouldRepaint(PolygonPainter oldDelegate) => true;
 }
 
-enum EyeEmotion { neutral, happy, angry, surprised, suspicious }
+enum EyeEmotion { neutral, happy, angry, surprised, suspicious, love, sad, excited, thinking }
 
 class CyberEyes extends StatefulWidget {
   final Offset lookAt;
@@ -1099,7 +1099,7 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
     super.initState();
     _blinkController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
     _pupilController = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
-    _emotionController = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _emotionController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
 
     _scheduleNextBlink();
     _scheduleNextEmotion();
@@ -1117,7 +1117,7 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
   }
 
   void _scheduleNextEmotion() {
-    Future.delayed(Duration(seconds: 5 + _random.nextInt(10)), () {
+    Future.delayed(Duration(seconds: 4 + _random.nextInt(8)), () {
       if (mounted) {
         final nextEmotion = EyeEmotion.values[_random.nextInt(EyeEmotion.values.length)];
         setState(() => _currentEmotion = nextEmotion);
@@ -1145,26 +1145,55 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        CyberEye(
-          isLeft: true,
-          lookAt: widget.lookAt,
-          blinkController: _blinkController,
-          pupilController: _pupilController,
-          emotionController: _emotionController,
-          currentEmotion: _currentEmotion,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CyberEye(
+              isLeft: true,
+              lookAt: widget.lookAt,
+              blinkController: _blinkController,
+              pupilController: _pupilController,
+              emotionController: _emotionController,
+              currentEmotion: _currentEmotion,
+            ),
+            const SizedBox(width: 40),
+            CyberEye(
+              isLeft: false,
+              lookAt: widget.lookAt,
+              blinkController: _blinkController,
+              pupilController: _pupilController,
+              emotionController: _emotionController,
+              currentEmotion: _currentEmotion,
+            ),
+          ],
         ),
-        const SizedBox(width: 30),
-        CyberEye(
-          isLeft: false,
-          lookAt: widget.lookAt,
-          blinkController: _blinkController,
-          pupilController: _pupilController,
-          emotionController: _emotionController,
-          currentEmotion: _currentEmotion,
-        ),
+        // Efeito de Blush de Anime
+        AnimatedBuilder(
+          animation: _emotionController,
+          builder: (context, child) {
+            bool showBlush = _currentEmotion == EyeEmotion.love || _currentEmotion == EyeEmotion.excited;
+            return Opacity(
+              opacity: showBlush ? _emotionController.value : 0,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(2, (index) => Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 50),
+                    width: 40, height: 10,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      gradient: LinearGradient(colors: [Colors.pinkAccent.withOpacity(0.3), Colors.transparent])
+                    ),
+                  )),
+                ),
+              ),
+            );
+          },
+        )
       ],
     );
   }
@@ -1190,14 +1219,21 @@ class CyberEye extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    double dx = (lookAt.dx - 0.5).clamp(-0.4, 0.4) * 60;
-    double dy = (lookAt.dy - 0.5).clamp(-0.4, 0.4) * 60;
+    double lookX = (lookAt.dx - 0.5).clamp(-0.4, 0.4) * 60;
+    double lookY = (lookAt.dy - 0.5).clamp(-0.4, 0.4) * 60;
+
+    // Lógica especial para emoção "Thinking" (olha para cima)
+    if (currentEmotion == EyeEmotion.thinking) {
+      lookY = -40 * emotionController.value;
+      lookX = (isLeft ? 20 : 10) * emotionController.value;
+    }
 
     return Container(
       width: 160, height: 160,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        boxShadow: [BoxShadow(color: const Color(0xFF27AE60).withOpacity(0.1), blurRadius: 30, spreadRadius: 5)],
+        border: Border.all(color: Colors.white10, width: 2),
+        boxShadow: [BoxShadow(color: const Color(0xFF27AE60).withOpacity(0.1), blurRadius: 40, spreadRadius: 5)],
       ),
       child: ClipOval(
         child: Stack(
@@ -1206,61 +1242,76 @@ class CyberEye extends StatelessWidget {
             Container(color: const Color(0xFF0F172A)),
             // Íris e Pupila
             Transform(
-              transform: Matrix4.identity()..setEntry(3, 2, 0.002)..rotateY(dx * 0.005)..rotateX(-dy * 0.005)..translate(dx, dy),
+              transform: Matrix4.identity()..setEntry(3, 2, 0.002)..rotateY(lookX * 0.005)..rotateX(-lookY * 0.005)..translate(lookX, lookY),
               child: AnimatedBuilder(
-                animation: pupilController,
+                animation: Listenable.merge([pupilController, emotionController]),
                 builder: (context, child) {
+                  Color irisColor = const Color(0xFF27AE60);
+                  if (currentEmotion == EyeEmotion.love) irisColor = Colors.pinkAccent;
+                  if (currentEmotion == EyeEmotion.angry) irisColor = Colors.redAccent;
+                  if (currentEmotion == EyeEmotion.sad) irisColor = Colors.cyan;
+
                   return Stack(
                     alignment: Alignment.center,
                     children: [
-                      // Íris Maior (Aumentada de 90 para 115)
+                      // Íris
                       Container(
-                        width: 115, height: 115,
+                        width: 120, height: 120,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: const RadialGradient(
-                            colors: [Color(0xFF55efc4), Color(0xFF27AE60), Colors.black],
-                            stops: [0.2, 0.7, 1.0]
+                          gradient: RadialGradient(
+                            colors: [irisColor.withOpacity(0.8), irisColor, Colors.black],
+                            stops: const [0.2, 0.7, 1.0]
                           ),
-                          boxShadow: [
-                            BoxShadow(color: const Color(0xFF27AE60).withOpacity(0.3), blurRadius: 10, spreadRadius: 2)
-                          ],
                         ),
                       ),
-                      // Pupila Dinâmica
+                      // Pupila
                       Container(
-                        width: 40 + (8 * pupilController.value),
-                        height: 40 + (8 * pupilController.value),
+                        width: (currentEmotion == EyeEmotion.surprised || currentEmotion == EyeEmotion.sad)
+                          ? 20 // Pupila pequena para choque/tristeza
+                          : 45 + (10 * pupilController.value),
+                        height: (currentEmotion == EyeEmotion.surprised || currentEmotion == EyeEmotion.sad)
+                          ? 20
+                          : 45 + (10 * pupilController.value),
                         decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black),
+                        child: currentEmotion == EyeEmotion.love
+                          ? const Center(child: Icon(Icons.favorite, color: Colors.pinkAccent, size: 25))
+                          : currentEmotion == EyeEmotion.excited
+                            ? const Center(child: Icon(Icons.star, color: Colors.yellowAccent, size: 30))
+                            : null,
                       ),
-                      // Brilho de Vida (Catchlight Principal)
+                      // Brilhos de Anime (Catchlights)
                       Positioned(
-                        top: 25, left: 30,
+                        top: 20, left: 30,
                         child: Container(
-                          width: 20, height: 20,
+                          width: 30, height: 30,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.4),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 30, right: 40,
+                        child: Container(
+                          width: 12, height: 12,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: Colors.white.withOpacity(0.3),
                           ),
                         ),
                       ),
-                      // Brilho Secundário (Sparkle de Carisma)
-                      Positioned(
-                        bottom: 35, right: 35,
-                        child: Container(
-                          width: 8, height: 8,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.2),
-                          ),
-                        ),
-                      ),
+                      if (currentEmotion == EyeEmotion.excited)
+                        ...List.generate(3, (i) => Positioned(
+                          top: 40.0 + (i * 20), left: 20,
+                          child: Icon(Icons.wb_sunny_outlined, color: Colors.white.withOpacity(0.5), size: 15),
+                        )),
                     ],
                   );
                 },
               ),
             ),
-            // Pálpebras Animadas
+            // Pálpebras Estilizadas
             AnimatedBuilder(
               animation: Listenable.merge([blinkController, emotionController]),
               builder: (context, child) {
@@ -1272,20 +1323,27 @@ class CyberEye extends StatelessWidget {
 
                 switch (currentEmotion) {
                   case EyeEmotion.happy:
-                    bottomEyelidHeight = 50 * val;
+                    bottomEyelidHeight = 60 * val;
                     break;
                   case EyeEmotion.angry:
-                    topEyelidHeight = 45 * val;
-                    // Inverte a inclinação entre olho esquerdo e direito
-                    topRotation = (isLeft ? 0.25 : -0.25) * val;
-                    bottomEyelidHeight = 20 * val;
+                    topEyelidHeight = 50 * val;
+                    topRotation = (isLeft ? 0.3 : -0.3) * val;
+                    bottomEyelidHeight = 15 * val;
                     break;
                   case EyeEmotion.surprised:
-                    eyeScale = 1.0 + (0.15 * val);
+                    eyeScale = 1.0 + (0.2 * val);
                     break;
                   case EyeEmotion.suspicious:
-                    topEyelidHeight = 40 * val;
-                    bottomEyelidHeight = 40 * val;
+                    topEyelidHeight = 45 * val;
+                    bottomEyelidHeight = 45 * val;
+                    break;
+                  case EyeEmotion.sad:
+                    topEyelidHeight = 30 * val;
+                    topRotation = (isLeft ? -0.15 : 0.15) * val;
+                    bottomEyelidHeight = 10 * val;
+                    break;
+                  case EyeEmotion.thinking:
+                    topEyelidHeight = (isLeft ? 20 : 40) * val;
                     break;
                   default: break;
                 }
@@ -1305,18 +1363,22 @@ class CyberEye extends StatelessWidget {
                         child: Transform.rotate(
                           angle: topRotation,
                           child: Container(
-                            height: (80 * blinkController.value + topEyelidHeight).clamp(0.0, 80.0),
-                            color: const Color(0xFF1E293B),
+                            height: (80 * blinkController.value + topEyelidHeight).clamp(0.0, 85.0),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF1E293B),
+                              border: Border(bottom: BorderSide(color: Colors.black, width: 4))
+                            ),
                           ),
                         ),
                       ),
                       Align(
                         alignment: Alignment.bottomCenter,
                         child: Container(
-                          height: (80 * blinkController.value + bottomEyelidHeight).clamp(0.0, 80.0),
+                          height: (80 * blinkController.value + bottomEyelidHeight).clamp(0.0, 85.0),
                           decoration: BoxDecoration(
                             color: const Color(0xFF1E293B),
                             borderRadius: BorderRadius.vertical(top: Radius.circular(currentEmotion == EyeEmotion.happy ? 100 * val : 0)),
+                            border: const Border(top: BorderSide(color: Colors.black, width: 2))
                           ),
                         ),
                       ),
