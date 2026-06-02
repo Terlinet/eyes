@@ -75,6 +75,7 @@ class _HomePageState extends State<HomePage> {
   late VideoPlayerController _controller;
   bool _isError = false;
   List<dynamic> _landmarks = [];
+  EyeEmotion _detectedEmotion = EyeEmotion.neutral;
 
   @override
   void initState() {
@@ -116,8 +117,35 @@ class _HomePageState extends State<HomePage> {
       final List<dynamic> newLandmarks = jsonDecode(landmarksJson.toDart);
       setState(() {
         _landmarks = newLandmarks;
+        _analyzeUserEmotion(newLandmarks);
       });
     } catch (e) {}
+  }
+
+  void _analyzeUserEmotion(List<dynamic> landmarks) {
+    if (landmarks.length < 11) return;
+
+    final nose = landmarks[0];
+    final leftMouth = landmarks[9];
+    final rightMouth = landmarks[10];
+
+    if (nose['visibility'] < 0.5 || leftMouth['visibility'] < 0.5 || rightMouth['visibility'] < 0.5) return;
+
+    double mouthY = (leftMouth['y'] + rightMouth['y']) / 2;
+    double mouthWidth = (leftMouth['x'] - rightMouth['x']).abs();
+    double noseY = nose['y'];
+
+    setState(() {
+      if (mouthY < noseY + 0.05 || mouthWidth > 0.08) {
+        _detectedEmotion = EyeEmotion.happy;
+      } else if (mouthY > noseY + 0.12) {
+        _detectedEmotion = EyeEmotion.surprised;
+      } else if (mouthY > noseY + 0.09) {
+        _detectedEmotion = EyeEmotion.sad;
+      } else {
+        _detectedEmotion = EyeEmotion.neutral;
+      }
+    });
   }
 
   Widget _buildInteractiveCube() {
@@ -193,7 +221,7 @@ class _HomePageState extends State<HomePage> {
         lookAt = Offset(x, y);
       }
     }
-    return CyberEyes(lookAt: lookAt);
+    return CyberEyes(lookAt: lookAt, detectedEmotion: _detectedEmotion);
   }
 
   @override
@@ -1081,7 +1109,8 @@ enum EyeEmotion { neutral, happy, angry, surprised, suspicious, love, sad, excit
 
 class CyberEyes extends StatefulWidget {
   final Offset lookAt;
-  const CyberEyes({super.key, required this.lookAt});
+  final EyeEmotion? detectedEmotion;
+  const CyberEyes({super.key, required this.lookAt, this.detectedEmotion});
 
   @override
   State<CyberEyes> createState() => _CyberEyesState();
@@ -1093,6 +1122,7 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
   late AnimationController _emotionController;
   EyeEmotion _currentEmotion = EyeEmotion.neutral;
   final math.Random _random = math.Random();
+  Timer? _randomEmotionTimer;
 
   @override
   void initState() {
@@ -1103,6 +1133,23 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
 
     _scheduleNextBlink();
     _scheduleNextEmotion();
+  }
+
+  @override
+  void didUpdateWidget(CyberEyes oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.detectedEmotion != null && widget.detectedEmotion != oldWidget.detectedEmotion) {
+      _applyDetectedEmotion(widget.detectedEmotion!);
+    }
+  }
+
+  void _applyDetectedEmotion(EyeEmotion emotion) {
+    _randomEmotionTimer?.cancel();
+    setState(() => _currentEmotion = emotion);
+    if (!_emotionController.isAnimating) {
+      _emotionController.forward(from: 0);
+    }
+    _randomEmotionTimer = Timer(const Duration(seconds: 3), () => _scheduleNextEmotion());
   }
 
   void _scheduleNextBlink() {
