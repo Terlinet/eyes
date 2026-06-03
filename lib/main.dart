@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -226,7 +227,14 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isWide = MediaQuery.of(context).size.width >= 1000;
+
     return Scaffold(
+      drawer: isWide ? null : Drawer(
+        width: 320,
+        backgroundColor: const Color(0xFF0F172A),
+        child: _buildSidebar(context, isDrawer: true),
+      ),
       body: Stack(
         children: [
           SizedBox.expand(
@@ -242,130 +250,179 @@ class _HomePageState extends State<HomePage> {
                 : Container(color: Colors.black),
           ),
           Container(color: Colors.black.withOpacity(0.7)),
-          SingleChildScrollView(
-            child: Center(
-              child: Container(
-                constraints: BoxConstraints(
-                  minHeight: MediaQuery.of(context).size.height,
-                  maxWidth: 1200, // Limita a largura para telas muito grandes
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 60),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
+          Row(
+            children: [
+              if (isWide) _buildSidebar(context),
+              Expanded(
+                child: Stack(
                   children: [
-                    _buildInteractiveEyes(),
-                    const SizedBox(height: 20),
-                    Text("TERLINET EYES",
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.orbitron(
-                            fontSize: clampDouble(MediaQuery.of(context).size.width * 0.05, 32, 48),
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 10,
-                            color: Colors.white)),
-                    const Text("SISTEMA DE MONITORAMENTO COM IA",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white54, letterSpacing: 5)),
-                    const SizedBox(height: 40),
-
-                    // Seção de Funcionalidades
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      child: Wrap(
-                        spacing: 20,
-                        runSpacing: 20,
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          _buildFeatureCard(
-                            icon: Icons.psychology,
-                            title: "IA AVANÇADA",
-                            description: "Detecção de pose humana em tempo real processada localmente.",
+                    if (!isWide)
+                      Positioned(
+                        top: 20,
+                        left: 20,
+                        child: Builder(
+                          builder: (context) => IconButton(
+                            icon: const Icon(Icons.menu, color: Colors.white, size: 35),
+                            onPressed: () => Scaffold.of(context).openDrawer(),
                           ),
-                          _buildFeatureCard(
-                            icon: Icons.health_and_safety,
-                            title: "HELPER ASSIST",
-                            color: Colors.cyanAccent,
-                            description: "IA de cuidado pessoal. Detecção inteligente de quedas com resposta por voz.",
-                          ),
-                          _buildFeatureCard(
-                            icon: Icons.crop_free,
-                            title: "ZONAS DINÂMICAS",
-                            description: "Defina perímetros de segurança customizáveis arrastando os pontos.",
-                          ),
-                          _buildFeatureCard(
-                            icon: Icons.campaign,
-                            title: "ALERTAS VOCAIS",
-                            description: "Protocolos de voz gerados por IA para dissuasão imediata.",
-                          ),
-                          _buildFeatureCard(
-                            icon: Icons.photo_camera,
-                            title: "EVIDÊNCIA DIGITAL",
-                            description: "Captura automática de fotos no momento exato da invasão.",
-                          ),
-                          _buildFeatureCard(
-                            icon: Icons.shield,
-                            title: "DEFENSE",
-                            color: Colors.redAccent,
-                            description: "Protocolo de defesa ativa com disparos de laser automáticos.",
-                          ),
-                          _buildFeatureCard(
-                            icon: Icons.add_chart,
-                            title: "COUNTER",
-                            color: Colors.orangeAccent,
-                            description: "Módulo externo de contagem e estatísticas avançadas.",
-                            onTap: () => _openUrl("https://terlinet.github.io/counter/".toJS, "_self".toJS),
-                          ),
-                        ],
+                        ),
+                      ),
+                    Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            FittedBox(
+                              fit: BoxFit.contain,
+                              child: _buildInteractiveEyes(),
+                            ),
+                            const SizedBox(height: 20),
+                            // O "ele" (CyberEyes) permanece como foco central absoluto
+                          ],
+                        ),
                       ),
                     ),
-
-                    const SizedBox(height: 40),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF27AE60),
-                        padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 25),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 10,
-                        shadowColor: const Color(0xFF27AE60).withOpacity(0.5),
-                      ),
-                      onPressed: () {
-                        _stopCamera();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const MonitorPage()),
-                        ).then((_) => _setupPoseDetection());
-                      },
-                      child: const Text("INICIAR SISTEMA DE ELITE",
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16, letterSpacing: 2)),
-                    ),
-                    const SizedBox(height: 40),
-                    _buildPrivacyNotice(),
-                    const SizedBox(height: 20),
-                    const Text("GOVERNANCE & VISION SYSTEM V1.0",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white24, fontSize: 10, letterSpacing: 3)),
                   ],
                 ),
               ),
-            ),
-          ),
-          Positioned(
-            top: 20,
-            left: 20,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildInteractiveCube(),
-                const SizedBox(height: 10),
-                _buildInteractiveTieFighter(),
-              ],
-            ),
+            ],
           ),
         ],
       ),
     );
   }
+
+  Widget _buildSidebar(BuildContext context, {bool isDrawer = false}) {
+    return Container(
+      width: isDrawer ? null : 320,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withOpacity(isDrawer ? 1.0 : 0.9),
+        border: isDrawer ? null : const Border(right: BorderSide(color: Colors.white10, width: 1)),
+      ),
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+            child: Column(
+              children: [
+                Text("TERLINET EYES",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.orbitron(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 4,
+                        color: Colors.white)),
+                const Text("SISTEMA DE MONITORAMENTO IA",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF27AE60), letterSpacing: 2, fontSize: 10, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 40),
+
+                // Módulos de ativação rápida
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Column(
+                      children: [
+                        _buildInteractiveCube(),
+                        const Text("HELPER", style: TextStyle(fontSize: 8, color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    Column(
+                      children: [
+                        _buildInteractiveTieFighter(),
+                        const Text("DEFENSE", style: TextStyle(fontSize: 8, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 40),
+                const Divider(color: Colors.white10),
+                const SizedBox(height: 20),
+
+                // Lista de Funcionalidades
+                _buildFeatureCard(
+                  icon: Icons.psychology,
+                  title: "IA AVANÇADA",
+                  description: "Análise de pose em tempo real local.",
+                ),
+                const SizedBox(height: 15),
+                _buildFeatureCard(
+                  icon: Icons.health_and_safety,
+                  title: "HELPER ASSIST",
+                  color: Colors.cyanAccent,
+                  description: "Monitoramento e cuidado inteligente.",
+                ),
+                const SizedBox(height: 15),
+                _buildFeatureCard(
+                  icon: Icons.crop_free,
+                  title: "ZONAS DINÂMICAS",
+                  description: "Definição de perímetros seguros.",
+                ),
+                const SizedBox(height: 15),
+                _buildFeatureCard(
+                  icon: Icons.campaign,
+                  title: "ALERTAS VOCAIS",
+                  description: "Dissuasão imediata via IA.",
+                ),
+                const SizedBox(height: 15),
+                _buildFeatureCard(
+                  icon: Icons.photo_camera,
+                  title: "EVIDÊNCIA DIGITAL",
+                  description: "Captura de intrusão em tempo real.",
+                ),
+                const SizedBox(height: 15),
+                _buildFeatureCard(
+                  icon: Icons.shield,
+                  title: "DEFENSE",
+                  color: Colors.redAccent,
+                  description: "Protocolo de neutralização laser.",
+                ),
+                const SizedBox(height: 15),
+                _buildFeatureCard(
+                  icon: Icons.add_chart,
+                  title: "COUNTER",
+                  color: Colors.orangeAccent,
+                  description: "Estatísticas avançadas externas.",
+                  onTap: () => _openUrl("https://terlinet.github.io/counter/".toJS, "_self".toJS),
+                ),
+
+                const SizedBox(height: 40),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF27AE60),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
+                    minimumSize: const Size(double.infinity, 60),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 10,
+                    shadowColor: const Color(0xFF27AE60).withOpacity(0.5),
+                  ),
+                  onPressed: () {
+                    _stopCamera();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const MonitorPage()),
+                    ).then((_) => _setupPoseDetection());
+                  },
+                  child: const Text("INICIAR MONITORAMENTO",
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13, letterSpacing: 2)),
+                ),
+
+                const SizedBox(height: 40),
+                _buildPrivacyNotice(),
+                const SizedBox(height: 20),
+                const Text("V1.0 GOVERNANCE SYSTEM",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white24, fontSize: 10, letterSpacing: 2)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildPrivacyNotice() {
     return Container(
@@ -1339,29 +1396,7 @@ class MouthPainter extends CustomPainter {
 
     final path = Path();
 
-    // HUD da Boca (detalhes tecnológicos nos cantos)
-    final hudPaint = Paint()
-      ..color = themeColor.withOpacity(0.4)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    // Desenha pequenos colchetes tecnológicos nos cantos
-    canvas.drawPath(
-      Path()
-        ..moveTo(centerX - 45, centerY - 10)
-        ..lineTo(centerX - 50, centerY - 10)
-        ..lineTo(centerX - 50, centerY + 10)
-        ..lineTo(centerX - 45, centerY + 10),
-      hudPaint
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(centerX + 45, centerY - 10)
-        ..lineTo(centerX + 50, centerY - 10)
-        ..lineTo(centerX + 50, centerY + 10)
-        ..lineTo(centerX + 45, centerY + 10),
-      hudPaint
-    );
+    // HUD da Boca removido conforme solicitado
 
     switch (emotion) {
       case EyeEmotion.happy:
@@ -1661,37 +1696,7 @@ class CyberEye extends StatelessWidget {
 class EyeHUDPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF27AE60).withOpacity(0.4)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-
-    // Círculo tracejado externo
-    for (var i = 0; i < 360; i += 20) {
-      double startAngle = i * math.pi / 180;
-      double sweepAngle = 10 * math.pi / 180;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius - 5),
-        startAngle,
-        sweepAngle,
-        false,
-        paint,
-      );
-    }
-
-    // Detalhes angulares
-    paint.strokeWidth = 3;
-    for (var i = 0; i < 4; i++) {
-      double angle = i * math.pi / 2;
-      canvas.drawLine(
-        Offset(center.dx + math.cos(angle) * (radius - 15), center.dy + math.sin(angle) * (radius - 15)),
-        Offset(center.dx + math.cos(angle) * radius, center.dy + math.sin(angle) * radius),
-        paint,
-      );
-    }
+    // Linhas de HUD removidas
   }
 
   @override

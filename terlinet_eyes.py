@@ -5,10 +5,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from pydantic import BaseModel
+from fastapi.responses import Response
 
 app = FastAPI()
 
-# Configuração de CORS para permitir acesso do Flutter Web
+# Configuração de CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,17 +18,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configuração da API GROQ (ou OpenAI)
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "SUA_CHAVE_AQUI")
+# --- CONFIGURAÇÃO DAS APIS ---
+
+# Groq para Inteligência (Texto rápido)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "SUA_GROQ_KEY")
 client_groq = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=GROQ_API_KEY)
 MODEL_NAME = "llama-3.3-70b-versatile"
+
+# OpenAI para Voz Neural (Super Natural)
+# Certifique-se de definir a variável de ambiente OPENAI_API_KEY no seu servidor/HuggingFace
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "SUA_OPENAI_KEY")
+client_openai = OpenAI(api_key=OPENAI_API_KEY)
 
 # --- MODELOS DE DADOS ---
 
 class VisionDetection(BaseModel):
     area_name: str
     object_type: str = "pessoa"
-    severity: str = "high"  # Sincronizado com o main.dart
+    severity: str = "high"
 
 class HelperContext(BaseModel):
     event_type: str = "fall_detection"
@@ -35,50 +43,59 @@ class HelperContext(BaseModel):
 class ChatQuestion(BaseModel):
     question: str
 
-# --- ENDPOINTS SISTEMA DE MONITORAMENTO (MONITOR PAGE) ---
+# --- NOVO ENDPOINT: VOZ SUPER NATURAL ---
+
+@app.get('/tts')
+async def text_to_speech(text: str):
+    """
+    Converte texto em áudio usando a voz neural 'nova' da OpenAI.
+    'nova' é uma voz feminina, jovem, energética e extremamente natural.
+    """
+    try:
+        response = client_openai.audio.speech.create(
+            model="tts-1",
+            voice="nova", # Voz feminina super natural
+            input=text
+        )
+        # Retorna o binário do áudio MP3 diretamente para o navegador/app
+        return Response(content=response.content, media_type="audio/mpeg")
+    except Exception as e:
+        print(f"Erro no TTS: {e}")
+        return {"error": "Falha ao gerar voz neural. Verifique a API Key da OpenAI."}
+
+# --- ENDPOINTS EXISTENTES (GROQ) ---
 
 @app.post('/ask')
-@app.post('/ask/')
 async def ask_ia(q: ChatQuestion):
     try:
         completion = client_groq.chat.completions.create(
             model=MODEL_NAME,
             messages=[
-                {"role": "system", "content": "Você é a TerlineT Eyes, uma IA de segurança e assistência de elite. Responda de forma curta, inteligente e cibernética."},
+                {"role": "system", "content": "Você é a TerlineT Eyes, uma IA de segurança e assistência de elite. Responda de forma curta, inteligente e cibernética em Português Brasil."},
                 {"role": "user", "content": q.question}
             ],
             max_tokens=250
         )
         return {"message": completion.choices[0].message.content.strip()}
     except Exception as e:
-        print(f"Erro no endpoint /ask: {e}")
-        return {"message": "Protocolo de comunicação interrompido. Verifique minha conexão com a rede neural."}
+        return {"message": "Erro de conexão com a rede neural."}
 
 @app.get('/explain_system')
 async def explain_system():
     try:
-        prompt = (
-            "Você é a TerlineT Eyes, uma IA de segurança de elite. "
-            "Explique de forma curta (máximo 3 frases) e elegante que o sistema usa visão computacional para monitorar perímetros, "
-            "que o usuário deve ajustar a zona verde e que qualquer intrusão disparará um alerta. "
-            "Seja profissional e autoritária."
-        )
         completion = client_groq.chat.completions.create(
             model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": "Explique o TerlineT Eyes em 2 frases curtas e elegantes."}],
             max_tokens=150
         )
         return {"message": completion.choices[0].message.content.strip()}
     except Exception as e:
-        return {"message": "Bem-vindo. Sou a TerlineT Eyes. Ajuste o perímetro de segurança. Estou operacional."}
+        return {"message": "TerlineT Eyes operacional. Ajuste o perímetro."}
 
 @app.post('/vision_alert')
 async def vision_alert(v: VisionDetection):
     try:
-        prompt = (
-            f"TerlineT Eyes detectou {v.object_type} em {v.area_name} com severidade {v.severity}. "
-            f"Aborde o invasor de forma curta, agressiva e autoritária para dissuasão."
-        )
+        prompt = f"Detectado {v.object_type} em {v.area_name}. Responda com uma ordem curta e autoritária de segurança."
         completion = client_groq.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
@@ -86,78 +103,55 @@ async def vision_alert(v: VisionDetection):
         )
         return {"message": completion.choices[0].message.content.strip()}
     except Exception as e:
-        return {"message": "Área restrita. Identifique-se imediatamente ou medidas de segurança serão tomadas."}
-
-# --- ENDPOINTS SISTEMA DE DEFESA (DEFENSE PAGE) ---
+        return {"message": "Área restrita! Identifique-se."}
 
 @app.get('/defense_intro')
 async def defense_intro():
     try:
-        prompt = (
-            "Você é o Sistema de Defesa TerlineT, uma IA tática de combate. "
-            "Diga de forma curta e intimidadora que o protocolo de defesa ativa está online, "
-            "as miras laser estão calibradas e qualquer invasão será neutralizada imediatamente."
-        )
         completion = client_groq.chat.completions.create(
             model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": "Diga que o protocolo de defesa está ativo de forma intimidadora e curta."}],
             max_tokens=100
         )
         return {"message": completion.choices[0].message.content.strip()}
     except Exception as e:
-        return {"message": "Sistema de defesa TerlineT operacional. Mira laser travada. Perímetro sob custódia."}
-
-# --- ENDPOINTS SISTEMA HELPER (ASSISTANCE PAGE) ---
+        return {"message": "Sistema de defesa TerlineT operacional. Mira laser travada."}
 
 @app.get('/helper_intro')
 async def helper_intro():
     try:
-        prompt = (
-            "Você é o TerlineT Helper, um assistente de monitoramento de saúde e segurança pessoal de elite. "
-            "Apresente-se de forma curta, elegante e protetora. Diga que está monitorando para garantir o bem-estar do usuário."
-        )
         completion = client_groq.chat.completions.create(
             model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": "Apresente-se como TerlineT Helper de forma protetora e curta."}],
             max_tokens=100
         )
         return {"message": completion.choices[0].message.content.strip()}
     except Exception as e:
-        return {"message": "Olá. Sou o seu Helper TerlineT. Estou monitorando o ambiente para sua total segurança."}
+        return {"message": "Olá. Sou o seu Helper TerlineT. Estou cuidando de você."}
 
 @app.post('/helper_check')
 async def helper_check(h: HelperContext):
     try:
-        prompt = (
-            f"Você é o TerlineT Helper. Você detectou um evento de {h.event_type} (possível queda). "
-            f"Pergunte se o usuário está bem e se precisa de ajuda. Seja solícito porém mantendo o padrão de IA de elite."
-        )
         completion = client_groq.chat.completions.create(
             model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": "Detectada queda. Pergunte se o usuário está bem de forma solícita."}],
             max_tokens=80
         )
         return {"message": completion.choices[0].message.content.strip()}
     except Exception as e:
-        return {"message": "Você está bem? Percebi um movimento atípico. Precisa de ajuda?"}
+        return {"message": "Você está bem? Precisa de ajuda?"}
 
 @app.get('/helper_emergency')
 async def helper_emergency():
     try:
-        prompt = (
-            "Você é o TerlineT Helper. O usuário não respondeu a um check de segurança após uma queda. "
-            "Grite (em texto) um alerta de emergência máximo. Diga que está chamando socorro agora. "
-            "Seja extremamente urgente e autoritário."
-        )
         completion = client_groq.chat.completions.create(
             model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": "Alerta de emergência máximo! O usuário não respondeu."}],
             max_tokens=100
         )
         return {"message": completion.choices[0].message.content.strip()}
     except Exception as e:
-        return {"message": "ALERTA MÁXIMO! Nenhuma resposta detectada. Iniciando protocolo de emergência e chamando ajuda IMEDIATAMENTE!"}
+        return {"message": "ALERTA! Chamando ajuda imediatamente!"}
 
 if __name__ == "__main__":
-    # Rodando na porta padrão do Hugging Face Spaces ou local
     uvicorn.run(app, host="0.0.0.0", port=7860)
