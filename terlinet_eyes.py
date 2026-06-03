@@ -32,7 +32,27 @@ class VisionDetection(BaseModel):
 class HelperContext(BaseModel):
     event_type: str = "fall_detection"
 
+class ChatQuestion(BaseModel):
+    question: str
+
 # --- ENDPOINTS SISTEMA DE MONITORAMENTO (MONITOR PAGE) ---
+
+@app.post('/ask')
+@app.post('/ask/')
+async def ask_ia(q: ChatQuestion):
+    try:
+        completion = client_groq.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "Você é a TerlineT Eyes, uma IA de segurança e assistência de elite. Responda de forma curta, inteligente e cibernética."},
+                {"role": "user", "content": q.question}
+            ],
+            max_tokens=250
+        )
+        return {"message": completion.choices[0].message.content.strip()}
+    except Exception as e:
+        print(f"Erro no endpoint /ask: {e}")
+        return {"message": "Protocolo de comunicação interrompido. Verifique minha conexão com a rede neural."}
 
 @app.get('/explain_system')
 async def explain_system():
