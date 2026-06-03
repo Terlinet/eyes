@@ -72,15 +72,21 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late VideoPlayerController _controller;
   bool _isError = false;
   List<dynamic> _landmarks = [];
   EyeEmotion _detectedEmotion = EyeEmotion.neutral;
+  bool _isChatting = false;
+  bool _isSpeaking = false;
+  String _chatStatus = "";
+  Timer? _chatTimer;
+  late AnimationController _micController;
 
   @override
   void initState() {
     super.initState();
+    _micController = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
     _controller = VideoPlayerController.asset("assets/videos/yees.mp4")
       ..initialize().then((_) {
         _controller.setLooping(true);
@@ -96,6 +102,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _controller.dispose();
+    _micController.dispose();
     _stopCamera();
     super.dispose();
   }
@@ -121,6 +128,64 @@ class _HomePageState extends State<HomePage> {
         _analyzeUserEmotion(newLandmarks);
       });
     } catch (e) {}
+  }
+
+  void _startVoiceInteraction() {
+    if (_isChatting) return;
+    _setSpeechCallback(_onVoiceCommandDetected.toJS);
+    _startListening();
+    setState(() {
+      _isChatting = true;
+      _chatStatus = "ESTOU OUVINDO... FALE AGORA";
+    });
+  }
+
+  void _onVoiceCommandDetected(JSString text) async {
+    String query = text.toDart;
+    if (query.isEmpty) return;
+
+    _stopListening();
+    setState(() {
+      _chatStatus = "PROCESSANDO PENSAMENTO...";
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse("https://tertulianoshow-terlinet-eyes.hf.space/ask"),
+        body: jsonEncode({"question": query}),
+        headers: {"Content-Type": "application/json"},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final aiMessage = data['message'];
+        setState(() {
+          _chatStatus = aiMessage;
+          _detectedEmotion = EyeEmotion.thinking;
+          _isSpeaking = true;
+        });
+
+        // Usa o seu novo endpoint de voz super natural do servidor
+        final ttsUrl = "https://tertulianoshow-terlinet-eyes.hf.space/tts?text=${Uri.encodeComponent(aiMessage)}";
+        _playSound(ttsUrl.toJS);
+
+        // Estima o tempo de fala baseado no tamanho do texto (aprox. 150ms por caractere)
+        final speechDuration = aiMessage.length * 100;
+
+        _chatTimer?.cancel();
+        _chatTimer = Timer(Duration(milliseconds: speechDuration), () {
+          if (mounted) setState(() { _isSpeaking = false; _detectedEmotion = EyeEmotion.neutral; });
+        });
+
+        // Timer de reset total da interface de chat
+        Timer(const Duration(seconds: 10), () {
+          if (mounted) setState(() { _isChatting = false; _chatStatus = ""; });
+        });
+      }
+    } catch (e) {
+      setState(() => _chatStatus = "CONEXÃO INSTÁVEL...");
+      Future.delayed(const Duration(seconds: 2), () => setState(() => _isChatting = false));
+    }
   }
 
   void _analyzeUserEmotion(List<dynamic> landmarks) {
@@ -222,7 +287,7 @@ class _HomePageState extends State<HomePage> {
         lookAt = Offset(x, y);
       }
     }
-    return CyberEyes(lookAt: lookAt, detectedEmotion: _detectedEmotion);
+    return CyberEyes(lookAt: lookAt, detectedEmotion: _detectedEmotion, isSpeaking: _isSpeaking);
   }
 
   @override
@@ -277,8 +342,43 @@ class _HomePageState extends State<HomePage> {
                               fit: BoxFit.contain,
                               child: _buildInteractiveEyes(),
                             ),
-                            const SizedBox(height: 20),
-                            // O "ele" (CyberEyes) permanece como foco central absoluto
+                            const SizedBox(height: 30),
+
+                            // Interface de Conversa por Voz
+                            AnimatedOpacity(
+                              opacity: _isChatting ? 1.0 : 0.0,
+                              duration: const Duration(milliseconds: 500),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
+                                decoration: BoxDecoration(
+                                  color: Colors.black87,
+                                  borderRadius: BorderRadius.circular(15),
+                                  border: Border.all(color: const Color(0xFF27AE60), width: 1),
+                                  boxShadow: [BoxShadow(color: const Color(0xFF27AE60).withOpacity(0.2), blurRadius: 20)],
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text("TERLINET COMUNICAÇÃO",
+                                      style: GoogleFonts.orbitron(color: const Color(0xFF27AE60), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                                    const Divider(color: Colors.white10, height: 20),
+                                    Text(_chatStatus,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.vt323(color: Colors.white, fontSize: 18, letterSpacing: 1)),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 40),
+
+                            // Botão de Voz Principal (Estilo Cyberpunk)
+                            GestureDetector(
+                              onTap: _startVoiceInteraction,
+                              child: _buildCyberMic(),
+                            ),
+                            const SizedBox(height: 15),
+                            Text("TOQUE PARA CONVERSAR",
+                              style: GoogleFonts.orbitron(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 2)),
                           ],
                         ),
                       ),
@@ -553,6 +653,35 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildCyberMic() {
+    final color = _isChatting ? Colors.redAccent : const Color(0xFF27AE60);
+    return AnimatedBuilder(
+      animation: _micController,
+      builder: (context, child) {
+        return Container(
+          width: 80, height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.black87,
+            border: Border.all(color: color, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.5),
+                blurRadius: 15 + (10 * math.sin(_micController.value * 2 * math.pi)).abs(),
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Icon(
+            _isChatting ? Icons.mic : Icons.mic_none,
+            color: color,
+            size: 35,
+          ),
+        );
+      },
+    );
+  }
+
   double clampDouble(double value, double min, double max) {
     if (value < min) return min;
     if (value > max) return max;
@@ -615,8 +744,8 @@ class _MonitorPageState extends State<MonitorPage> with TickerProviderStateMixin
 
   Future<void> _initTts() async {
     await _tts.setLanguage("pt-BR");
-    await _tts.setSpeechRate(1.0); // Máxima velocidade natural
-    await _tts.setPitch(1.0); // Tom mais humano e equilibrado
+    await _tts.setSpeechRate(1.0); // Velocidade natural
+    await _tts.setPitch(1.0); // Tom equilibrado e feminino
 
     try {
       var voices = await _tts.getVoices;
@@ -1167,7 +1296,8 @@ enum EyeEmotion { neutral, happy, angry, surprised, suspicious, love, sad, excit
 class CyberEyes extends StatefulWidget {
   final Offset lookAt;
   final EyeEmotion? detectedEmotion;
-  const CyberEyes({super.key, required this.lookAt, this.detectedEmotion});
+  final bool isSpeaking;
+  const CyberEyes({super.key, required this.lookAt, this.detectedEmotion, this.isSpeaking = false});
 
   @override
   State<CyberEyes> createState() => _CyberEyesState();
@@ -1178,6 +1308,7 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
   late AnimationController _pupilController;
   late AnimationController _emotionController;
   late AnimationController _breathingController;
+  late AnimationController _talkingController;
   EyeEmotion _currentEmotion = EyeEmotion.neutral;
   final math.Random _random = math.Random();
   Timer? _randomEmotionTimer;
@@ -1189,6 +1320,7 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
     _pupilController = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
     _emotionController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     _breathingController = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat(reverse: true);
+    _talkingController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
 
     _scheduleNextBlink();
     _scheduleNextEmotion();
@@ -1199,6 +1331,15 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
     super.didUpdateWidget(oldWidget);
     if (widget.detectedEmotion != null && widget.detectedEmotion != oldWidget.detectedEmotion) {
       _applyDetectedEmotion(widget.detectedEmotion!);
+    }
+
+    if (widget.isSpeaking != oldWidget.isSpeaking) {
+      if (widget.isSpeaking) {
+        _talkingController.repeat(reverse: true);
+      } else {
+        _talkingController.stop();
+        _talkingController.reverse();
+      }
     }
   }
 
@@ -1247,13 +1388,14 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
     _pupilController.dispose();
     _emotionController.dispose();
     _breathingController.dispose();
+    _talkingController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _breathingController,
+      animation: Listenable.merge([_breathingController, _talkingController]),
       builder: (context, child) {
         return Transform.translate(
           offset: Offset(0, 5 * math.sin(_breathingController.value * 2 * math.pi)),
@@ -1325,6 +1467,8 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
           CyberMouth(
             emotion: _currentEmotion,
             emotionController: _emotionController,
+            isTalking: widget.isSpeaking,
+            talkingProgress: _talkingController.value,
           ),
           const SizedBox(height: 20),
         ],
@@ -1336,23 +1480,29 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
 class CyberMouth extends StatelessWidget {
   final EyeEmotion emotion;
   final AnimationController emotionController;
+  final bool isTalking;
+  final double talkingProgress;
 
   const CyberMouth({
     super.key,
     required this.emotion,
     required this.emotionController,
+    this.isTalking = false,
+    this.talkingProgress = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: emotionController,
+      animation: Listenable.merge([emotionController]),
       builder: (context, child) {
         return CustomPaint(
           size: const Size(100, 40),
           painter: MouthPainter(
             emotion: emotion,
             progress: emotionController.value,
+            isTalking: isTalking,
+            talkingProgress: talkingProgress,
           ),
         );
       },
@@ -1363,15 +1513,22 @@ class CyberMouth extends StatelessWidget {
 class MouthPainter extends CustomPainter {
   final EyeEmotion emotion;
   final double progress;
+  final bool isTalking;
+  final double talkingProgress;
 
-  MouthPainter({required this.emotion, required this.progress});
+  MouthPainter({
+    required this.emotion,
+    required this.progress,
+    required this.isTalking,
+    required this.talkingProgress,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final centerX = size.width / 2;
     final centerY = size.height / 2;
 
-    // Define a cor temática da boca baseada na emoção para combinar com os olhos
+    // Define a cor temática da boca baseada na emoção
     Color themeColor = const Color(0xFF27AE60);
     if (emotion == EyeEmotion.love) themeColor = Colors.pinkAccent;
     if (emotion == EyeEmotion.angry) themeColor = Colors.redAccent;
@@ -1386,8 +1543,6 @@ class MouthPainter extends CustomPainter {
 
     final teethPaint = Paint()..color = Colors.white;
     final tonguePaint = Paint()..color = Colors.pinkAccent[100]!;
-
-    // Brilho Neon na borda da boca
     final strokePaint = Paint()
       ..color = Colors.black
       ..style = PaintingStyle.stroke
@@ -1396,7 +1551,28 @@ class MouthPainter extends CustomPainter {
 
     final path = Path();
 
-    // HUD da Boca removido conforme solicitado
+    // Lógica de FALA (Prioridade)
+    if (isTalking) {
+      double mouthOpen = 10 + (15 * talkingProgress);
+      path.moveTo(centerX - 35, centerY - 5);
+      path.quadraticBezierTo(centerX, centerY + mouthOpen, centerX + 35, centerY - 5);
+      path.quadraticBezierTo(centerX, centerY - 5, centerX - 35, centerY - 5);
+
+      canvas.drawPath(path, cavityPaint);
+
+      // Dentes (Sempre visíveis ao falar)
+      final teethPath = Path();
+      teethPath.moveTo(centerX - 30, centerY - 4);
+      teethPath.quadraticBezierTo(centerX, centerY + 2, centerX + 30, centerY - 4);
+      teethPath.lineTo(centerX + 30, centerY - 8);
+      teethPath.lineTo(centerX - 30, centerY - 8);
+      teethPath.close();
+      canvas.save();
+      canvas.clipPath(path);
+      canvas.drawPath(teethPath, teethPaint);
+      canvas.restore();
+      return;
+    }
 
     switch (emotion) {
       case EyeEmotion.happy:
