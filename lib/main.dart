@@ -1899,6 +1899,10 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
             emotionController: _emotionController,
             isTalking: widget.isSpeaking,
             talkingProgress: _talkingController.value,
+            pokedLeft: _pokedLeft,
+            pokedRight: _pokedRight,
+            painShakeController: _painShakeController,
+            talkingController: _talkingController,
           ),
           const SizedBox(height: 20),
         ],
@@ -1912,6 +1916,10 @@ class CyberMouth extends StatelessWidget {
   final AnimationController emotionController;
   final bool isTalking;
   final double talkingProgress;
+  final bool pokedLeft;
+  final bool pokedRight;
+  final AnimationController? painShakeController;
+  final AnimationController? talkingController;
 
   const CyberMouth({
     super.key,
@@ -1919,20 +1927,31 @@ class CyberMouth extends StatelessWidget {
     required this.emotionController,
     this.isTalking = false,
     this.talkingProgress = 0,
+    this.pokedLeft = false,
+    this.pokedRight = false,
+    this.painShakeController,
+    this.talkingController,
   });
 
   @override
   Widget build(BuildContext context) {
+    final List<Listenable> anims = [emotionController];
+    if (painShakeController != null) anims.add(painShakeController!);
+    if (talkingController != null) anims.add(talkingController!);
+
     return AnimatedBuilder(
-      animation: Listenable.merge([emotionController]),
+      animation: Listenable.merge(anims),
       builder: (context, child) {
         return CustomPaint(
-          size: const Size(100, 40),
+          size: const Size(120, 48),
           painter: MouthPainter(
             emotion: emotion,
             progress: emotionController.value,
             isTalking: isTalking,
-            talkingProgress: talkingProgress,
+            talkingProgress: talkingController?.value ?? talkingProgress,
+            pokedLeft: pokedLeft,
+            pokedRight: pokedRight,
+            painShake: painShakeController?.value ?? 0.0,
           ),
         );
       },
@@ -1945,12 +1964,18 @@ class MouthPainter extends CustomPainter {
   final double progress;
   final bool isTalking;
   final double talkingProgress;
+  final bool pokedLeft;
+  final bool pokedRight;
+  final double painShake;
 
   MouthPainter({
     required this.emotion,
     required this.progress,
     required this.isTalking,
     required this.talkingProgress,
+    this.pokedLeft = false,
+    this.pokedRight = false,
+    this.painShake = 0.0,
   });
 
   @override
@@ -1963,6 +1988,7 @@ class MouthPainter extends CustomPainter {
     if (emotion == EyeEmotion.love) themeColor = Colors.pinkAccent;
     if (emotion == EyeEmotion.angry) themeColor = Colors.redAccent;
     if (emotion == EyeEmotion.sad) themeColor = Colors.cyan;
+    if (emotion == EyeEmotion.pain) themeColor = Colors.orangeAccent;
 
     final cavityPaint = Paint()
       ..shader = RadialGradient(
@@ -1979,9 +2005,15 @@ class MouthPainter extends CustomPainter {
       ..strokeWidth = 3.5
       ..strokeCap = StrokeCap.round;
 
+    // Se for DOR: Prioridade máxima! Desenha expressão rica de dor (falando ou calado)
+    if (emotion == EyeEmotion.pain) {
+      _drawPainMouth(canvas, size, centerX, centerY, cavityPaint, teethPaint, strokePaint);
+      return;
+    }
+
     final path = Path();
 
-    // Lógica de FALA (Prioridade)
+    // Lógica de FALA para demais emoções
     if (isTalking) {
       double mouthOpen = 10 + (15 * talkingProgress);
       path.moveTo(centerX - 35, centerY - 5);
@@ -2052,19 +2084,19 @@ class MouthPainter extends CustomPainter {
 
       case EyeEmotion.angry:
       case EyeEmotion.sad:
-      case EyeEmotion.pain:
         path.moveTo(centerX - 30, centerY + 10 * progress);
         path.quadraticBezierTo(centerX, centerY - 5 * progress, centerX + 30, centerY + 10 * progress);
-        if (emotion == EyeEmotion.angry || emotion == EyeEmotion.pain) {
-          path.quadraticBezierTo(centerX, centerY + (emotion == EyeEmotion.pain ? 20 : 15) * progress, centerX - 30, centerY + 10 * progress);
+        if (emotion == EyeEmotion.angry) {
+          path.quadraticBezierTo(centerX, centerY + 15 * progress, centerX - 30, centerY + 10 * progress);
           canvas.drawPath(path, cavityPaint);
-          // Dentes cerrados com expressão de dor/esforço
           final gritPath = Path();
           gritPath.addRect(Rect.fromCenter(center: Offset(centerX, centerY + 2), width: 40, height: 4));
           canvas.save();
           canvas.clipPath(path);
           canvas.drawPath(gritPath, teethPaint);
           canvas.restore();
+        } else {
+          canvas.drawPath(path, strokePaint);
         }
         break;
 
@@ -2075,8 +2107,6 @@ class MouthPainter extends CustomPainter {
         break;
 
       default:
-        // No neutro, desenha uma linha preta bem fina ou nada?
-        // Vamos manter a linha preta mas sem o drawPath genérico no final.
         path.moveTo(centerX - 20, centerY);
         path.lineTo(centerX + 20, centerY);
         canvas.drawPath(path, strokePaint);
@@ -2084,9 +2114,176 @@ class MouthPainter extends CustomPainter {
     }
   }
 
+  void _drawPainMouth(
+    Canvas canvas,
+    Size size,
+    double centerX,
+    double centerY,
+    Paint cavityPaint,
+    Paint teethPaint,
+    Paint strokePaint,
+  ) {
+    // Tremor cômico de dor com atenuação
+    final double shake = painShake > 0
+        ? math.sin(painShake * 24 * math.pi) * (1.0 - painShake) * 3.5
+        : 0.0;
+
+    // Assimetria: o canto do lado cutucado repuxa para cima em esgar de dor
+    double leftCornerY = centerY + 3 + shake;
+    double rightCornerY = centerY + 3 - shake;
+
+    if (pokedLeft) {
+      leftCornerY = centerY - 8 + shake; // repuxa para cima no olho esquerdo machucado
+      rightCornerY = centerY + 7 - shake;
+    } else if (pokedRight) {
+      rightCornerY = centerY - 8 + shake; // repuxa para cima no olho direito machucado
+      leftCornerY = centerY + 7 - shake;
+    }
+
+    final double leftX = centerX - 38;
+    final double rightX = centerX + 38;
+
+    final teethLinePaint = Paint()
+      ..color = const Color(0xFF1E293B)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+
+    final outlinePaint = Paint()
+      ..color = const Color(0xFF0F172A)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.8
+      ..strokeCap = StrokeCap.round;
+
+    final stressPaint = Paint()
+      ..color = Colors.cyanAccent.withValues(alpha: 0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+
+    if (isTalking) {
+      // BOCA ABERTA EM GRITO / GEMIDO DE DOR
+      final double mouthOpen = 14 + (18 * talkingProgress);
+      final painPath = Path();
+      painPath.moveTo(leftX, leftCornerY);
+      // Lábio superior arqueado em esgar de dor
+      painPath.quadraticBezierTo(centerX, centerY - 10 + (shake * 0.5), rightX, rightCornerY);
+      // Lábio inferior escancarado em agonia
+      painPath.quadraticBezierTo(centerX, centerY + mouthOpen, leftX, leftCornerY);
+      painPath.close();
+
+      // Cavidade escura avermelhada
+      canvas.drawPath(painPath, cavityPaint);
+
+      // Salva para recortar os dentes dentro da boca
+      canvas.save();
+      canvas.clipPath(painPath);
+
+      // Fileira superior de dentes expostos
+      final topTeeth = Path();
+      topTeeth.moveTo(leftX + 4, leftCornerY);
+      topTeeth.quadraticBezierTo(centerX, centerY - 10, rightX - 4, rightCornerY);
+      topTeeth.lineTo(rightX - 4, centerY - 1);
+      topTeeth.quadraticBezierTo(centerX, centerY - 1, leftX + 4, centerY - 1);
+      topTeeth.close();
+      canvas.drawPath(topTeeth, teethPaint);
+
+      // Divisórias dos dentes superiores
+      for (int i = 1; i <= 6; i++) {
+        final double t = i / 7.0;
+        final double tx = leftX + 6 + (rightX - leftX - 12) * t;
+        canvas.drawLine(Offset(tx, centerY - 9), Offset(tx, centerY - 1), teethLinePaint);
+      }
+
+      // Fileira inferior de dentes
+      final bottomTeeth = Path();
+      final double botY = centerY + mouthOpen;
+      bottomTeeth.moveTo(leftX + 6, botY - 9);
+      bottomTeeth.quadraticBezierTo(centerX, botY - 8, rightX - 6, botY - 9);
+      bottomTeeth.lineTo(rightX - 6, botY);
+      bottomTeeth.quadraticBezierTo(centerX, botY, leftX + 6, botY);
+      bottomTeeth.close();
+      canvas.drawPath(bottomTeeth, teethPaint);
+
+      // Divisórias dos dentes inferiores
+      for (int i = 1; i <= 5; i++) {
+        final double t = i / 6.0;
+        final double tx = leftX + 8 + (rightX - leftX - 16) * t;
+        canvas.drawLine(Offset(tx, botY - 9), Offset(tx, botY), teethLinePaint);
+      }
+
+      canvas.restore();
+
+      // Contorno da boca
+      canvas.drawPath(painPath, outlinePaint);
+    } else {
+      // BOCA CERRANDO OS DENTES COM TREMOR (ESGAR DE DOR / CRINGE)
+      final grimacePath = Path();
+      final double mouthHeight = 11 + (4 * progress);
+
+      grimacePath.moveTo(leftX, leftCornerY);
+      grimacePath.quadraticBezierTo(centerX, centerY - 5 + shake, rightX, rightCornerY);
+      grimacePath.quadraticBezierTo(centerX, centerY - 5 + mouthHeight + shake, leftX, leftCornerY + mouthHeight);
+      grimacePath.close();
+
+      // Fundo escuro
+      canvas.drawPath(grimacePath, cavityPaint);
+
+      canvas.save();
+      canvas.clipPath(grimacePath);
+
+      // Preenchimento dos dentes cerrados
+      final teethBand = Path();
+      teethBand.addRect(Rect.fromLTWH(leftX - 5, centerY - 15, (rightX - leftX) + 10, 35));
+      canvas.drawPath(teethBand, teethPaint);
+
+      // Linha horizontal central de mordida
+      final biteLine = Path();
+      biteLine.moveTo(leftX, leftCornerY + (mouthHeight * 0.5));
+      biteLine.quadraticBezierTo(
+        centerX,
+        centerY - 5 + (mouthHeight * 0.5) + shake,
+        rightX,
+        rightCornerY + (mouthHeight * 0.5),
+      );
+      canvas.drawPath(biteLine, teethLinePaint..strokeWidth = 2.0);
+
+      // Linhas verticais separando dentes (estilo anime grimace clássico)
+      for (int i = 1; i <= 7; i++) {
+        final double t = i / 8.0;
+        final double tx = leftX + 5 + (rightX - leftX - 10) * t;
+        final double topY = centerY - 5 + shake + (leftCornerY - (centerY - 5)) * (1.0 - t);
+        final double bY = topY + mouthHeight;
+        canvas.drawLine(Offset(tx, topY), Offset(tx, bY), teethLinePaint..strokeWidth = 1.3);
+      }
+
+      canvas.restore();
+
+      // Contorno externo nítido
+      canvas.drawPath(grimacePath, outlinePaint);
+    }
+
+    // Traços de tensão/dor nos cantos da boca (estilo anime)
+    if (pokedLeft) {
+      canvas.drawLine(Offset(leftX - 3, leftCornerY - 3), Offset(leftX - 9, leftCornerY - 9), stressPaint);
+      canvas.drawLine(Offset(leftX - 1, leftCornerY + 4), Offset(leftX - 7, leftCornerY + 8), stressPaint);
+    } else if (pokedRight) {
+      canvas.drawLine(Offset(rightX + 3, rightCornerY - 3), Offset(rightX + 9, rightCornerY - 9), stressPaint);
+      canvas.drawLine(Offset(rightX + 1, rightCornerY + 4), Offset(rightX + 7, rightCornerY + 8), stressPaint);
+    } else {
+      canvas.drawLine(Offset(leftX - 3, leftCornerY - 2), Offset(leftX - 7, leftCornerY + 4), stressPaint);
+      canvas.drawLine(Offset(rightX + 3, rightCornerY - 2), Offset(rightX + 7, rightCornerY + 4), stressPaint);
+    }
+  }
+
   @override
   bool shouldRepaint(MouthPainter oldDelegate) =>
-      oldDelegate.emotion != emotion || oldDelegate.progress != progress;
+      oldDelegate.emotion != emotion ||
+      oldDelegate.progress != progress ||
+      oldDelegate.isTalking != isTalking ||
+      oldDelegate.talkingProgress != talkingProgress ||
+      oldDelegate.pokedLeft != pokedLeft ||
+      oldDelegate.pokedRight != pokedRight ||
+      oldDelegate.painShake != painShake;
 }
 
 class CyberEye extends StatelessWidget {
