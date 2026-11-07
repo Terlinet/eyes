@@ -1,11 +1,11 @@
-import 'package:js/js.dart';
-import 'package:js/js_util.dart';
+import 'dart:js_interop';
 
 @JS('setPoseCallback')
-external set _setPoseCallback(void Function(String landmarksJson) f);
+external void _setPoseCallback(JSFunction callback);
 
 void setPoseCallback(void Function(String landmarksJson) f) {
-  _setPoseCallback = allowInterop(f);
+  // Converte a closure Dart para JSFunction compatível com dart:js_interop
+  _setPoseCallback(f.toJS);
 }
 
 @JS('initPoseDetector')

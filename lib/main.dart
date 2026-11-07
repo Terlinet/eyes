@@ -82,6 +82,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String _chatStatus = "";
   Timer? _chatTimer;
   late AnimationController _micController;
+  Offset _cursorLookAt = const Offset(0.5, 0.5);
+  DateTime _lastMirrorReaction = DateTime.now().subtract(const Duration(seconds: 10));
+  EyeEmotion _lastMirroredEmotion = EyeEmotion.neutral;
 
   @override
   void initState() {
@@ -147,6 +150,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _stopListening();
     setState(() {
       _chatStatus = "PROCESSANDO PENSAMENTO...";
+      _detectedEmotion = EyeEmotion.thinking;
     });
 
     try {
@@ -158,60 +162,180 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final aiMessage = data['message'];
+        final aiMessage = data['message'] ?? "";
+        final emotionStr = (data['emotion'] as String?)?.toLowerCase() ?? "happy";
+
+        // Mapeia a string de emoção retornada pela IA para o enum EyeEmotion
+        EyeEmotion targetEmotion = EyeEmotion.happy;
+        switch (emotionStr) {
+          case 'love':
+            targetEmotion = EyeEmotion.love;
+            break;
+          case 'excited':
+            targetEmotion = EyeEmotion.excited;
+            break;
+          case 'surprised':
+            targetEmotion = EyeEmotion.surprised;
+            break;
+          case 'sad':
+            targetEmotion = EyeEmotion.sad;
+            break;
+          case 'angry':
+            targetEmotion = EyeEmotion.angry;
+            break;
+          case 'suspicious':
+            targetEmotion = EyeEmotion.suspicious;
+            break;
+          case 'silly':
+            targetEmotion = EyeEmotion.silly;
+            break;
+          case 'thinking':
+            targetEmotion = EyeEmotion.thinking;
+            break;
+          default:
+            targetEmotion = EyeEmotion.happy;
+        }
+
         setState(() {
           _chatStatus = aiMessage;
-          _detectedEmotion = EyeEmotion.thinking;
+          _detectedEmotion = targetEmotion;
           _isSpeaking = true;
         });
 
-        // Usa o seu novo endpoint de voz super natural do servidor
+        // Usa o seu endpoint de voz super natural do servidor
         final ttsUrl = "https://tertulianoshow-terlinet-eyes.hf.space/tts?text=${Uri.encodeComponent(aiMessage)}";
         _playSound(ttsUrl.toJS);
 
-        // Estima o tempo de fala baseado no tamanho do texto (aprox. 150ms por caractere)
-        final speechDuration = aiMessage.length * 100;
+        // Estima o tempo de fala baseado no tamanho do texto
+        final int speechDuration = math.max(2000, ((aiMessage as String).length * 90));
 
         _chatTimer?.cancel();
         _chatTimer = Timer(Duration(milliseconds: speechDuration), () {
-          if (mounted) setState(() { _isSpeaking = false; _detectedEmotion = EyeEmotion.neutral; });
+          if (mounted) {
+            setState(() {
+              _isSpeaking = false;
+              // Mantém a expressão viva um pouco mais e depois relaxa
+              Future.delayed(const Duration(seconds: 2), () {
+                if (mounted && !_isSpeaking) {
+                  setState(() => _detectedEmotion = EyeEmotion.neutral);
+                }
+              });
+            });
+          }
         });
 
         // Timer de reset total da interface de chat
-        Timer(const Duration(seconds: 10), () {
+        Timer(Duration(milliseconds: speechDuration + 6000), () {
           if (mounted) setState(() { _isChatting = false; _chatStatus = ""; });
         });
       }
     } catch (e) {
-      setState(() => _chatStatus = "CONEXÃO INSTÁVEL...");
+      setState(() {
+        _chatStatus = "CONEXÃO INSTÁVEL...";
+        _detectedEmotion = EyeEmotion.sad;
+      });
       Future.delayed(const Duration(seconds: 2), () => setState(() => _isChatting = false));
     }
   }
 
   void _analyzeUserEmotion(List<dynamic> landmarks) {
-    if (landmarks.length < 11) return;
+    if (landmarks.length < 11 || _isSpeaking) return;
 
     final nose = landmarks[0];
+    final leftEye = landmarks[2];
+    final rightEye = landmarks[5];
     final leftMouth = landmarks[9];
     final rightMouth = landmarks[10];
 
-    if (nose['visibility'] < 0.5 || leftMouth['visibility'] < 0.5 || rightMouth['visibility'] < 0.5) return;
+    if (nose['visibility'] < 0.4 || leftMouth['visibility'] < 0.4 || rightMouth['visibility'] < 0.4) return;
 
-    double mouthY = (leftMouth['y'] + rightMouth['y']) / 2;
-    double mouthWidth = (leftMouth['x'] - rightMouth['x']).abs();
-    double noseY = nose['y'];
+    final double noseX = (nose['x'] as num).toDouble();
+    final double noseY = (nose['y'] as num).toDouble();
+    final double leftMouthX = (leftMouth['x'] as num).toDouble();
+    final double leftMouthY = (leftMouth['y'] as num).toDouble();
+    final double rightMouthX = (rightMouth['x'] as num).toDouble();
+    final double rightMouthY = (rightMouth['y'] as num).toDouble();
 
-    setState(() {
-      if (mouthY < noseY + 0.05 || mouthWidth > 0.08) {
-        _detectedEmotion = EyeEmotion.happy;
-      } else if (mouthY > noseY + 0.12) {
-        _detectedEmotion = EyeEmotion.surprised;
-      } else if (mouthY > noseY + 0.09) {
-        _detectedEmotion = EyeEmotion.sad;
-      } else {
-        _detectedEmotion = EyeEmotion.neutral;
+    final double mouthCenterX = (leftMouthX + rightMouthX) / 2.0;
+    final double mouthCenterY = (leftMouthY + rightMouthY) / 2.0;
+    final double mouthWidth = (leftMouthX - rightMouthX).abs();
+    final double mouthToNoseDist = (mouthCenterY - noseY).abs();
+
+    // Distância dos olhos se disponível para normalização de escala facial
+    double eyeDist = 0.12;
+    if (landmarks.length > 5 && leftEye['visibility'] > 0.4 && rightEye['visibility'] > 0.4) {
+      eyeDist = math.max(0.04, ((leftEye['x'] as num).toDouble() - (rightEye['x'] as num).toDouble()).abs());
+    }
+
+    // Normaliza largura da boca em relação à distância interocular
+    final double normalizedMouthWidth = mouthWidth / eyeDist;
+
+    // Detecção de mão próxima da boca (gesto de beijo / coração / mãozinha)
+    bool handNearMouth = false;
+    if (landmarks.length > 20) {
+      final leftWrist = landmarks[15];
+      final rightWrist = landmarks[16];
+      if (leftWrist['visibility'] > 0.4) {
+        final double dist = math.sqrt(math.pow((leftWrist['x'] as num).toDouble() - mouthCenterX, 2) + math.pow((leftWrist['y'] as num).toDouble() - mouthCenterY, 2));
+        if (dist < 0.15) handNearMouth = true;
       }
-    });
+      if (rightWrist['visibility'] > 0.4) {
+        final double dist = math.sqrt(math.pow((rightWrist['x'] as num).toDouble() - mouthCenterX, 2) + math.pow((rightWrist['y'] as num).toDouble() - mouthCenterY, 2));
+        if (dist < 0.15) handNearMouth = true;
+      }
+    }
+
+    EyeEmotion targetEmotion = EyeEmotion.neutral;
+    String feedbackText = "";
+
+    // 1. BEIJO (boca em bico estreita E mãos perto da boca ou boca bem compacta projetada)
+    if (handNearMouth || (normalizedMouthWidth < 0.45 && mouthToNoseDist < 0.14)) {
+      targetEmotion = EyeEmotion.love;
+      feedbackText = "♥ MANDOU UM BEIJO! BEIJINHO DE VOLTA!";
+    }
+    // 2. SORRISO (boca larga puxada para as laterais)
+    else if (normalizedMouthWidth > 0.75 || mouthWidth > 0.082) {
+      targetEmotion = EyeEmotion.happy;
+      feedbackText = "😄 VI SEU SORRISO! SORRINDO COM VOCÊ!";
+    }
+    // 3. SURPRESA / BOCA ABERTA (distância boca-nariz acentuada e boca aberta em 'O')
+    else if (mouthToNoseDist > 0.135) {
+      targetEmotion = EyeEmotion.surprised;
+      feedbackText = "😲 OPA! VOCÊ FICOU SURPRESO?!";
+    }
+    // 4. TRISTEZA / BOCA CAÍDA
+    else if (mouthCenterY > noseY + 0.11 && normalizedMouthWidth < 0.58) {
+      targetEmotion = EyeEmotion.sad;
+      feedbackText = "🥺 NÃO FIQUE TRISTE, ESTOU AQUI!";
+    }
+
+    if (targetEmotion != EyeEmotion.neutral && targetEmotion != _detectedEmotion) {
+      final now = DateTime.now();
+      setState(() {
+        _detectedEmotion = targetEmotion;
+        // Se mudou de emoção e passou um tempinho (2.5s), exibe o feedback empático
+        if (now.difference(_lastMirrorReaction).inMilliseconds > 2500 && feedbackText.isNotEmpty) {
+          _lastMirrorReaction = now;
+          _lastMirroredEmotion = targetEmotion;
+          _chatStatus = feedbackText;
+          _isChatting = true;
+
+          Timer(const Duration(seconds: 3), () {
+            if (mounted && !_isSpeaking) {
+              setState(() {
+                _isChatting = false;
+                _chatStatus = "";
+              });
+            }
+          });
+        }
+      });
+    } else if (targetEmotion == EyeEmotion.neutral && _detectedEmotion != EyeEmotion.neutral && !_isSpeaking) {
+      // Retorna gradualmente ao neutro quando o usuário relaxa o rosto
+      setState(() {
+        _detectedEmotion = EyeEmotion.neutral;
+      });
+    }
   }
 
   Widget _buildInteractiveCube() {
@@ -277,7 +401,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildInteractiveEyes() {
-    Offset lookAt = const Offset(0.5, 0.5);
+    Offset lookAt = _cursorLookAt;
     if (_landmarks.isNotEmpty) {
       final nose = _landmarks[0];
       if (nose['visibility'] > 0.5) {
@@ -287,7 +411,52 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         lookAt = Offset(x, y);
       }
     }
-    return CyberEyes(lookAt: lookAt, detectedEmotion: _detectedEmotion, isSpeaking: _isSpeaking);
+    return Tooltip(
+      message: "Cuidado! Não cutuque os olhos do robô!",
+      child: CyberEyes(
+        lookAt: lookAt,
+        detectedEmotion: _detectedEmotion,
+        isSpeaking: _isSpeaking,
+        onEyePoked: (bool isLeft) {
+          // Toca imediatamente o áudio local de dor do robô!
+          _playSound("assets/aiai.mpeg".toJS);
+
+          final String side = isLeft ? "esquerdo" : "direito";
+          final List<String> painLines = [
+            "Ai meu olho $side! Cuidado com esse dedo!",
+            "Ai! Meus sensores visuais! Não enfia o dedo no meu olho!",
+            "Epa! Ai meu olho! Isso doeu nos meus circuitos ópticos!",
+          ];
+          final String chosenLine = painLines[math.Random().nextInt(painLines.length)];
+
+          setState(() {
+            _chatStatus = "⚠️ $chosenLine";
+            _isChatting = true;
+            _isSpeaking = true;
+          });
+
+          final int speechDuration = 3000;
+
+          _chatTimer?.cancel();
+          _chatTimer = Timer(Duration(milliseconds: speechDuration), () {
+            if (mounted) {
+              setState(() {
+                _isSpeaking = false;
+              });
+            }
+          });
+
+          Timer(Duration(milliseconds: speechDuration + 2500), () {
+            if (mounted && !_isSpeaking) {
+              setState(() {
+                _isChatting = false;
+                _chatStatus = "";
+              });
+            }
+          });
+        },
+      ),
+    );
   }
 
   @override
@@ -300,7 +469,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         backgroundColor: const Color(0xFF0F172A),
         child: _buildSidebar(context, isDrawer: true),
       ),
-      body: Stack(
+      body: MouseRegion(
+        onHover: (event) {
+          final size = MediaQuery.of(context).size;
+          if (size.width > 0 && size.height > 0) {
+            final nx = (event.position.dx / size.width).clamp(0.0, 1.0);
+            final ny = (event.position.dy / size.height).clamp(0.0, 1.0);
+            setState(() {
+              _cursorLookAt = Offset(nx, ny);
+            });
+          }
+        },
+        child: Stack(
         children: [
           SizedBox.expand(
             child: !_isError && _controller.value.isInitialized
@@ -389,6 +569,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ],
           ),
         ],
+      ),
       ),
     );
   }
@@ -1291,13 +1472,15 @@ class PolygonPainter extends CustomPainter {
   bool shouldRepaint(PolygonPainter oldDelegate) => true;
 }
 
-enum EyeEmotion { neutral, happy, angry, surprised, suspicious, love, sad, excited, thinking, silly }
+enum EyeEmotion { neutral, happy, angry, surprised, suspicious, love, sad, excited, thinking, silly, pain, sleepy }
 
 class CyberEyes extends StatefulWidget {
   final Offset lookAt;
   final EyeEmotion? detectedEmotion;
   final bool isSpeaking;
-  const CyberEyes({super.key, required this.lookAt, this.detectedEmotion, this.isSpeaking = false});
+  final VoidCallback? onPet;
+  final Function(bool isLeft)? onEyePoked;
+  const CyberEyes({super.key, required this.lookAt, this.detectedEmotion, this.isSpeaking = false, this.onPet, this.onEyePoked});
 
   @override
   State<CyberEyes> createState() => _CyberEyesState();
@@ -1309,9 +1492,104 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
   late AnimationController _emotionController;
   late AnimationController _breathingController;
   late AnimationController _talkingController;
+  late AnimationController _painShakeController;
+  late AnimationController _winkController;
+  late AnimationController _particleController;
+
   EyeEmotion _currentEmotion = EyeEmotion.neutral;
   final math.Random _random = math.Random();
   Timer? _randomEmotionTimer;
+  Timer? _idleTimer;
+  bool _isPetting = false;
+  bool _pokedLeft = false;
+  bool _pokedRight = false;
+  bool _isWinkingLeft = false;
+
+  void _resetIdleTimer() {
+    _idleTimer?.cancel();
+    if (_currentEmotion == EyeEmotion.sleepy) {
+      setState(() => _currentEmotion = EyeEmotion.surprised);
+      _emotionController.forward(from: 0).then((_) {
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted && _currentEmotion == EyeEmotion.surprised) {
+            setState(() => _currentEmotion = EyeEmotion.neutral);
+          }
+        });
+      });
+    }
+    // Entra em modo sono após 40s de inatividade
+    _idleTimer = Timer(const Duration(seconds: 40), () {
+      if (mounted && !widget.isSpeaking) {
+        setState(() => _currentEmotion = EyeEmotion.sleepy);
+        _emotionController.forward(from: 0);
+      }
+    });
+  }
+
+  void triggerWink() {
+    _isWinkingLeft = _random.nextBool();
+    _winkController.forward().then((_) {
+      if (mounted) _winkController.reverse();
+    });
+  }
+
+  void triggerPain(bool isLeft) {
+    _resetIdleTimer();
+    _randomEmotionTimer?.cancel();
+    setState(() {
+      _currentEmotion = EyeEmotion.pain;
+      if (isLeft) {
+        _pokedLeft = true;
+      } else {
+        _pokedRight = true;
+      }
+    });
+
+    _painShakeController.forward(from: 0);
+    _emotionController.forward(from: 0);
+
+    Future.delayed(const Duration(milliseconds: 3200), () {
+      if (mounted) {
+        _emotionController.reverse().then((_) {
+          if (mounted) {
+            setState(() {
+              _pokedLeft = false;
+              _pokedRight = false;
+              _currentEmotion = EyeEmotion.suspicious;
+            });
+            _scheduleNextEmotion();
+          }
+        });
+      }
+    });
+  }
+
+  void pet() {
+    _resetIdleTimer();
+    _randomEmotionTimer?.cancel();
+    setState(() {
+      _isPetting = true;
+      _currentEmotion = EyeEmotion.love;
+    });
+    _blinkController.forward().then((_) {
+      if (mounted) _blinkController.reverse();
+    });
+    _emotionController.forward(from: 0).then((_) {
+      Future.delayed(const Duration(milliseconds: 2500), () {
+        if (mounted) {
+          _emotionController.reverse().then((_) {
+            if (mounted) {
+              setState(() {
+                _isPetting = false;
+                _currentEmotion = EyeEmotion.happy;
+              });
+              _scheduleNextEmotion();
+            }
+          });
+        }
+      });
+    });
+  }
 
   @override
   void initState() {
@@ -1321,14 +1599,19 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
     _emotionController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     _breathingController = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat(reverse: true);
     _talkingController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+    _painShakeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _winkController = AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
+    _particleController = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
 
     _scheduleNextBlink();
     _scheduleNextEmotion();
+    _resetIdleTimer();
   }
 
   @override
   void didUpdateWidget(CyberEyes oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _resetIdleTimer();
     if (widget.detectedEmotion != null && widget.detectedEmotion != oldWidget.detectedEmotion) {
       _applyDetectedEmotion(widget.detectedEmotion!);
     }
@@ -1344,20 +1627,47 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
   }
 
   void _applyDetectedEmotion(EyeEmotion emotion) {
+    _resetIdleTimer();
     _randomEmotionTimer?.cancel();
     setState(() => _currentEmotion = emotion);
     if (!_emotionController.isAnimating) {
       _emotionController.forward(from: 0);
     }
-    _randomEmotionTimer = Timer(const Duration(seconds: 3), () => _scheduleNextEmotion());
+    // Quando o usuário relaxa o rosto (volta a neutral), transiciona rápido
+    if (emotion == EyeEmotion.neutral) {
+      _emotionController.reverse().then((_) {
+        if (mounted && !widget.isSpeaking && _currentEmotion == EyeEmotion.neutral) {
+          _scheduleNextEmotion();
+        }
+      });
+      return;
+    }
+    // Se o usuário mantém uma expressão ou está falando, mantém vivo
+    if (!widget.isSpeaking) {
+      _randomEmotionTimer = Timer(const Duration(seconds: 4), () {
+        if (mounted && !widget.isSpeaking) {
+          _emotionController.reverse().then((_) {
+            if (mounted && !widget.isSpeaking) {
+              setState(() => _currentEmotion = EyeEmotion.neutral);
+              _scheduleNextEmotion();
+            }
+          });
+        }
+      });
+    }
   }
 
   void _scheduleNextBlink() {
     Future.delayed(Duration(seconds: 3 + _random.nextInt(5)), () {
       if (mounted) {
-        _blinkController.forward().then((_) {
-          if (mounted) _blinkController.reverse();
-        });
+        // 25% de chance de dar uma piscadela charmosa (Wink) em vez de piscar os dois
+        if (_random.nextDouble() < 0.25 && _currentEmotion == EyeEmotion.happy || _currentEmotion == EyeEmotion.neutral) {
+          triggerWink();
+        } else {
+          _blinkController.forward().then((_) {
+            if (mounted) _blinkController.reverse();
+          });
+        }
         _scheduleNextBlink();
       }
     });
@@ -1365,7 +1675,7 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
 
   void _scheduleNextEmotion() {
     Future.delayed(Duration(seconds: 4 + _random.nextInt(8)), () {
-      if (mounted) {
+      if (mounted && _currentEmotion != EyeEmotion.sleepy) {
         final nextEmotion = EyeEmotion.values[_random.nextInt(EyeEmotion.values.length)];
         setState(() => _currentEmotion = nextEmotion);
         _emotionController.forward(from: 0).then((_) {
@@ -1384,58 +1694,165 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _idleTimer?.cancel();
     _blinkController.dispose();
     _pupilController.dispose();
     _emotionController.dispose();
     _breathingController.dispose();
     _talkingController.dispose();
+    _painShakeController.dispose();
+    _winkController.dispose();
+    _particleController.dispose();
     super.dispose();
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_breathingController, _talkingController]),
+      animation: Listenable.merge([_breathingController, _talkingController, _painShakeController]),
       builder: (context, child) {
+        // Tremor cômico quando sente dor
+        double shakeX = 0;
+        double shakeY = 0;
+        if (_painShakeController.isAnimating) {
+          double shakeIntensity = (1.0 - _painShakeController.value) * 12;
+          shakeX = math.sin(_painShakeController.value * 20 * math.pi) * shakeIntensity;
+          shakeY = math.cos(_painShakeController.value * 20 * math.pi) * (shakeIntensity * 0.5);
+        }
+
         return Transform.translate(
-          offset: Offset(0, 5 * math.sin(_breathingController.value * 2 * math.pi)),
+          offset: Offset(shakeX, (5 * math.sin(_breathingController.value * 2 * math.pi)) + shakeY),
           child: child,
         );
       },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          // Linha dos Olhos com Efeitos Holográficos Flutuantes
+          Stack(
+            alignment: Alignment.center,
             children: [
-              Stack(
-                alignment: Alignment.center,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CustomPaint(size: const Size(200, 200), painter: EyeHUDPainter()),
-                  CyberEye(
-                    isLeft: true,
-                    lookAt: widget.lookAt,
-                    blinkController: _blinkController,
-                    pupilController: _pupilController,
-                    emotionController: _emotionController,
-                    currentEmotion: _currentEmotion,
+                  // Olho Esquerdo com detecção direta de toque (dor no olho)
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () {
+                        triggerPain(true);
+                        widget.onEyePoked?.call(true);
+                      },
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CustomPaint(size: const Size(200, 200), painter: EyeHUDPainter()),
+                          AnimatedBuilder(
+                            animation: _winkController,
+                            builder: (context, child) {
+                              return CyberEye(
+                                isLeft: true,
+                                lookAt: widget.lookAt,
+                                blinkController: _blinkController,
+                                pupilController: _pupilController,
+                                emotionController: _emotionController,
+                                currentEmotion: _currentEmotion,
+                                winkFactor: _isWinkingLeft ? _winkController.value : 0.0,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 40),
+                  // Olho Direito com detecção direta de toque (dor no olho)
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () {
+                        triggerPain(false);
+                        widget.onEyePoked?.call(false);
+                      },
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CustomPaint(size: const Size(200, 200), painter: EyeHUDPainter()),
+                          AnimatedBuilder(
+                            animation: _winkController,
+                            builder: (context, child) {
+                              return CyberEye(
+                                isLeft: false,
+                                lookAt: widget.lookAt,
+                                blinkController: _blinkController,
+                                pupilController: _pupilController,
+                                emotionController: _emotionController,
+                                currentEmotion: _currentEmotion,
+                                winkFactor: !_isWinkingLeft ? _winkController.value : 0.0,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(width: 40),
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  CustomPaint(size: const Size(200, 200), painter: EyeHUDPainter()),
-                  CyberEye(
-                    isLeft: false,
-                    lookAt: widget.lookAt,
-                    blinkController: _blinkController,
-                    pupilController: _pupilController,
-                    emotionController: _emotionController,
-                    currentEmotion: _currentEmotion,
-                  ),
-                ],
+              // Partículas Emocionais Flutuantes (Corações, Lágrimas, Zzz de sono)
+              AnimatedBuilder(
+                animation: _particleController,
+                builder: (context, child) {
+                  final pVal = _particleController.value;
+                  if (_currentEmotion == EyeEmotion.love) {
+                    return Positioned(
+                      top: -10 - (20 * pVal),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Opacity(
+                            opacity: (1.0 - pVal).clamp(0.0, 1.0),
+                            child: const Icon(Icons.favorite, color: Colors.pinkAccent, size: 28),
+                          ),
+                          const SizedBox(width: 80),
+                          Opacity(
+                            opacity: (1.0 - pVal).clamp(0.0, 1.0),
+                            child: const Icon(Icons.favorite, color: Colors.pinkAccent, size: 22),
+                          ),
+                        ],
+                      ),
+                    );
+                  } else if (_currentEmotion == EyeEmotion.sleepy) {
+                    return Positioned(
+                      top: -15 - (25 * pVal),
+                      right: 40,
+                      child: Opacity(
+                        opacity: (1.0 - pVal).clamp(0.0, 1.0),
+                        child: Text("Zzz...",
+                          style: GoogleFonts.vt323(color: Colors.cyanAccent, fontSize: 26, fontWeight: FontWeight.bold)),
+                      ),
+                    );
+                  } else if (_currentEmotion == EyeEmotion.pain || _currentEmotion == EyeEmotion.sad) {
+                    return Positioned(
+                      bottom: 10 + (25 * pVal),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Opacity(
+                            opacity: (1.0 - pVal).clamp(0.0, 1.0),
+                            child: const Icon(Icons.water_drop, color: Colors.cyanAccent, size: 20),
+                          ),
+                          const SizedBox(width: 140),
+                          Opacity(
+                            opacity: (1.0 - pVal).clamp(0.0, 1.0),
+                            child: const Icon(Icons.water_drop, color: Colors.cyanAccent, size: 20),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
               ),
             ],
           ),
@@ -1622,12 +2039,13 @@ class MouthPainter extends CustomPainter {
 
       case EyeEmotion.angry:
       case EyeEmotion.sad:
+      case EyeEmotion.pain:
         path.moveTo(centerX - 30, centerY + 10 * progress);
         path.quadraticBezierTo(centerX, centerY - 5 * progress, centerX + 30, centerY + 10 * progress);
-        if (emotion == EyeEmotion.angry) {
-          path.quadraticBezierTo(centerX, centerY + 15 * progress, centerX - 30, centerY + 10 * progress);
+        if (emotion == EyeEmotion.angry || emotion == EyeEmotion.pain) {
+          path.quadraticBezierTo(centerX, centerY + (emotion == EyeEmotion.pain ? 20 : 15) * progress, centerX - 30, centerY + 10 * progress);
           canvas.drawPath(path, cavityPaint);
-          // Dentes cerrados
+          // Dentes cerrados com expressão de dor/esforço
           final gritPath = Path();
           gritPath.addRect(Rect.fromCenter(center: Offset(centerX, centerY + 2), width: 40, height: 4));
           canvas.save();
@@ -1635,6 +2053,12 @@ class MouthPainter extends CustomPainter {
           canvas.drawPath(gritPath, teethPaint);
           canvas.restore();
         }
+        break;
+
+      case EyeEmotion.sleepy:
+        // Bocejo fofo quando com sono
+        path.addOval(Rect.fromCenter(center: Offset(centerX, centerY + 3), width: 22 * progress, height: 18 * progress));
+        canvas.drawPath(path, cavityPaint);
         break;
 
       default:
@@ -1659,6 +2083,7 @@ class CyberEye extends StatelessWidget {
   final AnimationController pupilController;
   final AnimationController emotionController;
   final EyeEmotion currentEmotion;
+  final double winkFactor;
 
   const CyberEye({
     super.key,
@@ -1668,6 +2093,7 @@ class CyberEye extends StatelessWidget {
     required this.pupilController,
     required this.emotionController,
     required this.currentEmotion,
+    this.winkFactor = 0.0,
   });
 
   @override
@@ -1703,6 +2129,7 @@ class CyberEye extends StatelessWidget {
                   if (currentEmotion == EyeEmotion.love) irisColor = Colors.pinkAccent;
                   if (currentEmotion == EyeEmotion.angry) irisColor = Colors.redAccent;
                   if (currentEmotion == EyeEmotion.sad) irisColor = Colors.cyan;
+                  if (currentEmotion == EyeEmotion.pain) irisColor = Colors.orangeAccent;
 
                   return Stack(
                     alignment: Alignment.center,
@@ -1720,37 +2147,44 @@ class CyberEye extends StatelessWidget {
                       ),
                       // Pupila
                       Container(
-                        width: (currentEmotion == EyeEmotion.surprised || currentEmotion == EyeEmotion.sad)
-                          ? 20 // Pupila pequena para choque/tristeza
+                        width: (currentEmotion == EyeEmotion.surprised || currentEmotion == EyeEmotion.sad || currentEmotion == EyeEmotion.pain)
+                          ? 16 // Pupila bem contraída para dor/choque
                           : 45 + (10 * pupilController.value),
-                        height: (currentEmotion == EyeEmotion.surprised || currentEmotion == EyeEmotion.sad)
-                          ? 20
+                        height: (currentEmotion == EyeEmotion.surprised || currentEmotion == EyeEmotion.sad || currentEmotion == EyeEmotion.pain)
+                          ? 16
                           : 45 + (10 * pupilController.value),
                         decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black),
                         child: currentEmotion == EyeEmotion.love
                           ? const Center(child: Icon(Icons.favorite, color: Colors.pinkAccent, size: 25))
                           : currentEmotion == EyeEmotion.excited
                             ? const Center(child: Icon(Icons.star, color: Colors.yellowAccent, size: 30))
-                            : null,
+                            : currentEmotion == EyeEmotion.pain
+                              ? const Center(child: Icon(Icons.close, color: Colors.redAccent, size: 14))
+                              : null,
                       ),
-                      // Brilhos de Anime (Catchlights)
+                      // Brilhos de Anime (Catchlights) com Parallax Dinâmico
                       Positioned(
-                        top: 20, left: 30,
+                        top: 20 - (lookY * 0.15),
+                        left: 30 + (lookX * 0.15),
                         child: Container(
                           width: 30, height: 30,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.4),
+                            color: Colors.white.withOpacity(0.45),
+                            boxShadow: [
+                              BoxShadow(color: Colors.white.withOpacity(0.2), blurRadius: 6),
+                            ],
                           ),
                         ),
                       ),
                       Positioned(
-                        bottom: 30, right: 40,
+                        bottom: 30 + (lookY * 0.1),
+                        right: 40 - (lookX * 0.1),
                         child: Container(
                           width: 12, height: 12,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.3),
+                            color: Colors.white.withOpacity(0.35),
                           ),
                         ),
                       ),
@@ -1795,15 +2229,31 @@ class CyberEye extends StatelessWidget {
                     topRotation = (isLeft ? -0.15 : 0.15) * val;
                     bottomEyelidHeight = 10 * val;
                     break;
+                  case EyeEmotion.pain:
+                    // Olhos bem apertados de dor com tremor
+                    topEyelidHeight = 65 * val;
+                    bottomEyelidHeight = 65 * val;
+                    topRotation = (isLeft ? 0.35 : -0.35) * val;
+                    eyeScale = 0.92;
+                    break;
                   case EyeEmotion.thinking:
-                    topEyelidHeight = (isLeft ? 20 : 40) * val;
+                    // Assimetria charmosa: uma sobrancelha mais levantada e pálpebra curiosa
+                    topEyelidHeight = (isLeft ? 15 : 45) * val;
+                    topRotation = (isLeft ? -0.15 : 0.25) * val;
+                    break;
+                  case EyeEmotion.sleepy:
+                    // Pálpebras caídas de sono
+                    topEyelidHeight = 55 * val;
+                    bottomEyelidHeight = 25 * val;
                     break;
                   default: break;
                 }
 
-                if (blinkController.value > 0) {
-                  topEyelidHeight = 80 * blinkController.value;
-                  bottomEyelidHeight = 80 * blinkController.value;
+                // Aplica piscadela única (Wink) ou piscar normal
+                double effectiveBlink = math.max(blinkController.value, winkFactor);
+                if (effectiveBlink > 0) {
+                  topEyelidHeight = 80 * effectiveBlink;
+                  bottomEyelidHeight = 80 * effectiveBlink;
                   topRotation = 0;
                 }
 

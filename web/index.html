@@ -192,10 +192,13 @@
     window.setSpeechCallback = (callback) => { speechCallback = callback; };
 
     window.playSound = (soundPath) => {
+      const clean = soundPath.replace(/^assets\//, "");
       const paths = [
         soundPath,
-        "assets/" + soundPath,
-        "assets/assets/" + soundPath.replace("assets/", "")
+        "assets/" + clean,
+        "assets/assets/" + clean,
+        "assets/audio/" + clean,
+        "assets/assets/audio/" + clean
       ];
 
       const playFirstSuccessful = (index) => {
