@@ -1538,11 +1538,8 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
     _randomEmotionTimer?.cancel();
     setState(() {
       _currentEmotion = EyeEmotion.pain;
-      if (isLeft) {
-        _pokedLeft = true;
-      } else {
-        _pokedRight = true;
-      }
+      _pokedLeft = isLeft;
+      _pokedRight = !isLeft;
     });
 
     _painShakeController.forward(from: 0);
@@ -1751,13 +1748,20 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
                           AnimatedBuilder(
                             animation: _winkController,
                             builder: (context, child) {
+                              final EyeEmotion leftEmotion = (_currentEmotion == EyeEmotion.pain)
+                                  ? (_pokedLeft ? EyeEmotion.pain : EyeEmotion.surprised)
+                                  : _currentEmotion;
+                              final Offset leftLook = (_currentEmotion == EyeEmotion.pain && !_pokedLeft)
+                                  ? const Offset(0.85, 0.5) // olha chocado para o olho direito machucado
+                                  : widget.lookAt;
+
                               return CyberEye(
                                 isLeft: true,
-                                lookAt: widget.lookAt,
+                                lookAt: leftLook,
                                 blinkController: _blinkController,
                                 pupilController: _pupilController,
                                 emotionController: _emotionController,
-                                currentEmotion: _currentEmotion,
+                                currentEmotion: leftEmotion,
                                 winkFactor: _isWinkingLeft ? _winkController.value : 0.0,
                               );
                             },
@@ -1782,13 +1786,20 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
                           AnimatedBuilder(
                             animation: _winkController,
                             builder: (context, child) {
+                              final EyeEmotion rightEmotion = (_currentEmotion == EyeEmotion.pain)
+                                  ? (_pokedRight ? EyeEmotion.pain : EyeEmotion.surprised)
+                                  : _currentEmotion;
+                              final Offset rightLook = (_currentEmotion == EyeEmotion.pain && !_pokedRight)
+                                  ? const Offset(0.15, 0.5) // olha chocado para o olho esquerdo machucado
+                                  : widget.lookAt;
+
                               return CyberEye(
                                 isLeft: false,
-                                lookAt: widget.lookAt,
+                                lookAt: rightLook,
                                 blinkController: _blinkController,
                                 pupilController: _pupilController,
                                 emotionController: _emotionController,
-                                currentEmotion: _currentEmotion,
+                                currentEmotion: rightEmotion,
                                 winkFactor: !_isWinkingLeft ? _winkController.value : 0.0,
                               );
                             },
@@ -1833,18 +1844,20 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
                       ),
                     );
                   } else if (_currentEmotion == EyeEmotion.pain || _currentEmotion == EyeEmotion.sad) {
+                    final bool showLeftTear = _currentEmotion == EyeEmotion.sad || (_currentEmotion == EyeEmotion.pain && _pokedLeft);
+                    final bool showRightTear = _currentEmotion == EyeEmotion.sad || (_currentEmotion == EyeEmotion.pain && _pokedRight);
                     return Positioned(
                       bottom: 10 + (25 * pVal),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Opacity(
-                            opacity: (1.0 - pVal).clamp(0.0, 1.0),
+                            opacity: showLeftTear ? (1.0 - pVal).clamp(0.0, 1.0) : 0.0,
                             child: const Icon(Icons.water_drop, color: Colors.cyanAccent, size: 20),
                           ),
                           const SizedBox(width: 140),
                           Opacity(
-                            opacity: (1.0 - pVal).clamp(0.0, 1.0),
+                            opacity: showRightTear ? (1.0 - pVal).clamp(0.0, 1.0) : 0.0,
                             child: const Icon(Icons.water_drop, color: Colors.cyanAccent, size: 20),
                           ),
                         ],
