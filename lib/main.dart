@@ -435,7 +435,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             _isSpeaking = true;
           });
 
-          final int speechDuration = 3000;
+          final ttsUrl = "https://tertulianoshow-terlinet-eyes.hf.space/tts?text=${Uri.encodeComponent(chosenLine)}";
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) _playSound(ttsUrl.toJS);
+          });
+
+          final int speechDuration = math.max(2000, chosenLine.length * 90);
 
           _chatTimer?.cancel();
           _chatTimer = Timer(Duration(milliseconds: speechDuration), () {
@@ -1495,6 +1500,7 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
   late AnimationController _painShakeController;
   late AnimationController _winkController;
   late AnimationController _particleController;
+  late AnimationController _punchController;
 
   EyeEmotion _currentEmotion = EyeEmotion.neutral;
   final math.Random _random = math.Random();
@@ -1503,6 +1509,8 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
   bool _isPetting = false;
   bool _pokedLeft = false;
   bool _pokedRight = false;
+  bool _punchedLeft = false;
+  bool _isPunching = false;
   bool _isWinkingLeft = false;
 
   void _resetIdleTimer() {
@@ -1540,10 +1548,15 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
       _currentEmotion = EyeEmotion.pain;
       _pokedLeft = isLeft;
       _pokedRight = !isLeft;
+      _punchedLeft = isLeft;
+      _isPunching = true;
     });
 
     _painShakeController.forward(from: 0);
     _emotionController.forward(from: 0);
+    _punchController.forward(from: 0).then((_) {
+      if (mounted) setState(() => _isPunching = false);
+    });
 
     Future.delayed(const Duration(milliseconds: 3200), () {
       if (mounted) {
@@ -1599,6 +1612,7 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
     _painShakeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     _winkController = AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
     _particleController = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
+    _punchController = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
 
     _scheduleNextBlink();
     _scheduleNextEmotion();
@@ -1700,6 +1714,7 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
     _painShakeController.dispose();
     _winkController.dispose();
     _particleController.dispose();
+    _punchController.dispose();
     super.dispose();
   }
 
@@ -1728,11 +1743,14 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
         children: [
           // Linha dos Olhos com Efeitos Holográficos Flutuantes
           Stack(
+            clipBehavior: Clip.none,
             alignment: Alignment.center,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 100),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                   // Olho Esquerdo com detecção direta de toque (dor no olho)
                   MouseRegion(
                     cursor: SystemMouseCursors.click,
@@ -1766,10 +1784,10 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
                               );
                             },
                           ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                   const SizedBox(width: 40),
                   // Olho Direito com detecção direta de toque (dor no olho)
                   MouseRegion(
@@ -1810,9 +1828,10 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
                   ),
                 ],
               ),
+              ),
               // Partículas Emocionais Flutuantes (Corações, Lágrimas, Zzz de sono)
               AnimatedBuilder(
-                animation: _particleController,
+                animation: Listenable.merge([_particleController, _punchController]),
                 builder: (context, child) {
                   final pVal = _particleController.value;
                   if (_currentEmotion == EyeEmotion.love) {
@@ -1867,6 +1886,29 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
                   return const SizedBox.shrink();
                 },
               ),
+              if (_isPunching)
+                AnimatedBuilder(
+                  animation: _punchController,
+                  builder: (context, child) {
+                    final progress = Curves.easeOutBack.transform(_punchController.value);
+                    return Positioned(
+                      top: 48 - (5 * progress),
+                      left: _punchedLeft ? 16 * _punchController.value : null,
+                      right: _punchedLeft ? null : 16 * _punchController.value,
+                      child: Opacity(
+                        opacity: (1 - _punchController.value).clamp(0.0, 1.0),
+                        child: Transform.scale(
+                          scale: 0.55 + (0.55 * progress),
+                          child: const Text(
+                            "👊",
+                            style: TextStyle(fontSize: 88),
+                            semanticsLabel: "Soco",
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
             ],
           ),
           // Efeito de Blush de Anime
