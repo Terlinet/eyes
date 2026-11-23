@@ -9,308 +9,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 
-class _ObjectVocabularyEntry {
-  const _ObjectVocabularyEntry({
-    required this.emoji,
-    required this.portuguese,
-    required this.english,
-    required this.spanish,
-    required this.french,
-    required this.german,
-    required this.italian,
-    this.chinese = '',
-    required this.aliases,
-  });
-
-  final String emoji;
-  final String portuguese;
-  final String english;
-  final String spanish;
-  final String french;
-  final String german;
-  final String italian;
-  final String chinese;
-  final List<String> aliases;
-
-  String get result =>
-      '$emoji $portuguese\n'
-      'Português: $portuguese\n'
-      'English: $english\n'
-      'Español: $spanish\n'
-      'Français: $french\n'
-      'Deutsch: $german\n'
-      'Italiano: $italian\n'
-      '中文: $chinese';
-}
-
-const _offlineObjectVocabulary = <_ObjectVocabularyEntry>[
-  _ObjectVocabularyEntry(
-    emoji: '🚗', portuguese: 'Carro', english: 'Car', spanish: 'Coche',
-    french: 'Voiture', german: 'Auto', italian: 'Automobile',
-    chinese: '汽车',
-    aliases: ['carro', 'automovel', 'car', 'coche', 'automovil', 'voiture', 'auto', 'wagen', 'automobile', 'macchina', '汽车', 'qiche'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🚲', portuguese: 'Bicicleta', english: 'Bicycle', spanish: 'Bicicleta',
-    french: 'Vélo', german: 'Fahrrad', italian: 'Bicicletta',
-    chinese: '自行车',
-    aliases: ['bicicleta', 'bicycle', 'bike', 'velo', 'fahrrad', 'bicicletta', '自行车', 'zixingche'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🏠', portuguese: 'Casa', english: 'House', spanish: 'Casa',
-    french: 'Maison', german: 'Haus', italian: 'Casa',
-    chinese: '房子',
-    aliases: ['casa', 'house', 'home', 'maison', 'haus', '房子', 'fangzi'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '📚', portuguese: 'Livro', english: 'Book', spanish: 'Libro',
-    french: 'Livre', german: 'Buch', italian: 'Libro',
-    chinese: '书',
-    aliases: ['livro', 'book', 'libro', 'livre', 'buch', '书', 'shu'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🪑', portuguese: 'Cadeira', english: 'Chair', spanish: 'Silla',
-    french: 'Chaise', german: 'Stuhl', italian: 'Sedia',
-    chinese: '椅子',
-    aliases: ['cadeira', 'chair', 'silla', 'chaise', 'stuhl', 'sedia', '椅子', 'yizi'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🪟', portuguese: 'Janela', english: 'Window', spanish: 'Ventana',
-    french: 'Fenêtre', german: 'Fenster', italian: 'Finestra',
-    chinese: '窗户',
-    aliases: ['janela', 'window', 'ventana', 'fenetre', 'fenster', 'finestra', '窗户', 'chuanghu'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🚪', portuguese: 'Porta', english: 'Door', spanish: 'Puerta',
-    french: 'Porte', german: 'Tür', italian: 'Porta',
-    chinese: '门',
-    aliases: ['porta', 'door', 'puerta', 'porte', 'tur', 'tuer', '门', 'men'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '💡', portuguese: 'Lâmpada', english: 'Light bulb', spanish: 'Bombilla',
-    french: 'Ampoule', german: 'Glühbirne', italian: 'Lampadina',
-    chinese: '灯泡',
-    aliases: ['lampada', 'luz', 'light bulb', 'bulb', 'bombilla', 'ampoule', 'gluhbirne', 'lampadina', '灯泡', 'dengpao'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '📱', portuguese: 'Celular', english: 'Mobile phone', spanish: 'Teléfono móvil',
-    french: 'Téléphone portable', german: 'Mobiltelefon', italian: 'Cellulare',
-    chinese: '手机',
-    aliases: ['celular', 'telefone', 'phone', 'mobile phone', 'smartphone', 'telefono', 'movil', 'telephone', 'portable', 'mobiltelefon', 'cellulare', '手机', 'shouji'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '💻', portuguese: 'Computador', english: 'Computer', spanish: 'Computadora',
-    french: 'Ordinateur', german: 'Computer', italian: 'Computer',
-    chinese: '电脑',
-    aliases: ['computador', 'computadora', 'ordenador', 'computer', 'laptop', 'notebook', 'ordinateur', '电脑', 'diannao'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '⌚', portuguese: 'Relógio', english: 'Watch', spanish: 'Reloj',
-    french: 'Montre', german: 'Uhr', italian: 'Orologio',
-    chinese: '手表',
-    aliases: ['relogio', 'watch', 'wristwatch', 'reloj', 'montre', 'uhr', 'orologio', '手表', 'shoubiao'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🛏️', portuguese: 'Cama', english: 'Bed', spanish: 'Cama',
-    french: 'Lit', german: 'Bett', italian: 'Letto',
-    chinese: '床',
-    aliases: ['cama', 'bed', 'lit', 'bett', 'letto', '床', 'chuang'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '☕', portuguese: 'Xícara', english: 'Cup', spanish: 'Taza',
-    french: 'Tasse', german: 'Tasse', italian: 'Tazza',
-    chinese: '杯子',
-    aliases: ['xícara', 'xicara', 'cup', 'taza', 'tasse', 'tazza', '杯子', 'beizi'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🔑', portuguese: 'Chave', english: 'Key', spanish: 'Llave',
-    french: 'Clé', german: 'Schlüssel', italian: 'Chiave',
-    chinese: '钥匙',
-    aliases: ['chave', 'key', 'llave', 'cle', 'schlussel', 'chiave', '钥匙', 'yaoshi'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🎒', portuguese: 'Mochila', english: 'Backpack', spanish: 'Mochila',
-    french: 'Sac à dos', german: 'Rucksack', italian: 'Zaino',
-    chinese: '背包',
-    aliases: ['mochila', 'backpack', 'rucksack', 'sac a dos', 'zaino', '背包', 'beibao'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '👓', portuguese: 'Óculos', english: 'Glasses', spanish: 'Gafas',
-    french: 'Lunettes', german: 'Brille', italian: 'Occhiali',
-    chinese: '眼镜',
-    aliases: ['oculos', 'glasses', 'eyeglasses', 'gafas', 'lentes', 'lunettes', 'brille', 'occhiali', '眼镜', 'yanjing'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '☂️', portuguese: 'Guarda-chuva', english: 'Umbrella', spanish: 'Paraguas',
-    french: 'Parapluie', german: 'Regenschirm', italian: 'Ombrello',
-    chinese: '雨伞',
-    aliases: ['guarda chuva', 'umbrella', 'paraguas', 'parapluie', 'regenschirm', 'ombrello', '雨伞', 'yusan'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '⚽', portuguese: 'Bola', english: 'Ball', spanish: 'Pelota',
-    french: 'Ballon', german: 'Ball', italian: 'Palla',
-    chinese: '球',
-    aliases: ['bola', 'ball', 'pelota', 'ballon', 'palla', '球', 'qiu'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🍎', portuguese: 'Maçã', english: 'Apple', spanish: 'Manzana',
-    french: 'Pomme', german: 'Apfel', italian: 'Mela',
-    chinese: '苹果',
-    aliases: ['maca', 'apple', 'manzana', 'pomme', 'apfel', 'mela', '苹果', 'pingguo'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🍌', portuguese: 'Banana', english: 'Banana', spanish: 'Plátano',
-    french: 'Banane', german: 'Banane', italian: 'Banana',
-    chinese: '香蕉',
-    aliases: ['banana', 'banane', 'platano', 'plantain', '香蕉', 'xiangjiao'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🍊', portuguese: 'Laranja', english: 'Orange', spanish: 'Naranja',
-    french: 'Orange', german: 'Orange', italian: 'Arancia',
-    chinese: '橙子',
-    aliases: ['laranja', 'orange', 'naranja', 'arancia', '橙子', 'chengzi'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🍓', portuguese: 'Morango', english: 'Strawberry', spanish: 'Fresa',
-    french: 'Fraise', german: 'Erdbeere', italian: 'Fragola',
-    chinese: '草莓',
-    aliases: ['morango', 'strawberry', 'fresa', 'frutilla', 'fraise', 'erdbeere', 'fragola', '草莓', 'caomei'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🍇', portuguese: 'Uva', english: 'Grape', spanish: 'Uva',
-    french: 'Raisin', german: 'Traube', italian: 'Uva',
-    chinese: '葡萄',
-    aliases: ['uva', 'grape', 'grapes', 'raisin', 'traube', '葡萄', 'putao'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🍞', portuguese: 'Pão', english: 'Bread', spanish: 'Pan',
-    french: 'Pain', german: 'Brot', italian: 'Pane',
-    chinese: '面包',
-    aliases: ['pao', 'bread', 'pan', 'pain', 'brot', 'pane', '面包', 'mianbao'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🧀', portuguese: 'Queijo', english: 'Cheese', spanish: 'Queso',
-    french: 'Fromage', german: 'Käse', italian: 'Formaggio',
-    chinese: '奶酪',
-    aliases: ['queijo', 'cheese', 'queso', 'fromage', 'kase', 'formaggio', '奶酪', 'na lao'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '💧', portuguese: 'Água', english: 'Water', spanish: 'Agua',
-    french: 'Eau', german: 'Wasser', italian: 'Acqua',
-    chinese: '水',
-    aliases: ['agua', 'water', 'eau', 'wasser', 'acqua', '水', 'shui'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🐶', portuguese: 'Cachorro', english: 'Dog', spanish: 'Perro',
-    french: 'Chien', german: 'Hund', italian: 'Cane',
-    chinese: '狗',
-    aliases: ['cachorro', 'cão', 'cao', 'dog', 'perro', 'chien', 'hund', 'cane', '狗', 'gou'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🐱', portuguese: 'Gato', english: 'Cat', spanish: 'Gato',
-    french: 'Chat', german: 'Katze', italian: 'Gatto',
-    chinese: '猫',
-    aliases: ['gato', 'cat', 'chat', 'katze', 'gatto', '猫', 'mao'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🐦', portuguese: 'Pássaro', english: 'Bird', spanish: 'Pájaro',
-    french: 'Oiseau', german: 'Vogel', italian: 'Uccello',
-    chinese: '鸟',
-    aliases: ['passaro', 'pajaro', 'bird', 'oiseau', 'vogel', 'uccello', '鸟', 'niao'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🐟', portuguese: 'Peixe', english: 'Fish', spanish: 'Pez',
-    french: 'Poisson', german: 'Fisch', italian: 'Pesce',
-    chinese: '鱼',
-    aliases: ['peixe', 'fish', 'pez', 'poisson', 'fisch', 'pesce', '鱼', 'yu'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🌳', portuguese: 'Árvore', english: 'Tree', spanish: 'Árbol',
-    french: 'Arbre', german: 'Baum', italian: 'Albero',
-    chinese: '树',
-    aliases: ['arvore', 'arbol', 'tree', 'arbre', 'baum', 'albero', '树', 'shu'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🌸', portuguese: 'Flor', english: 'Flower', spanish: 'Flor',
-    french: 'Fleur', german: 'Blume', italian: 'Fiore',
-    chinese: '花',
-    aliases: ['flor', 'flower', 'fleur', 'blume', 'fiore', '花', 'hua'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '☀️', portuguese: 'Sol', english: 'Sun', spanish: 'Sol',
-    french: 'Soleil', german: 'Sonne', italian: 'Sole',
-    chinese: '太阳',
-    aliases: ['sol', 'sun', 'soleil', 'sonne', 'sole', '太阳', 'taiyang'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🌙', portuguese: 'Lua', english: 'Moon', spanish: 'Luna',
-    french: 'Lune', german: 'Mond', italian: 'Luna',
-    chinese: '月亮',
-    aliases: ['lua', 'moon', 'luna', 'lune', 'mond', '月亮', 'yueliang'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '⭐', portuguese: 'Estrela', english: 'Star', spanish: 'Estrella',
-    french: 'Étoile', german: 'Stern', italian: 'Stella',
-    chinese: '星星',
-    aliases: ['estrela', 'star', 'estrella', 'etoile', 'stern', 'stella', '星星', 'xingxing'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🚌', portuguese: 'Ônibus', english: 'Bus', spanish: 'Autobús',
-    french: 'Bus', german: 'Bus', italian: 'Autobus',
-    chinese: '公共汽车',
-    aliases: ['onibus', 'bus', 'autobus', '公共汽车', 'gonggongqiche'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🚆', portuguese: 'Trem', english: 'Train', spanish: 'Tren',
-    french: 'Train', german: 'Zug', italian: 'Treno',
-    chinese: '火车',
-    aliases: ['trem', 'train', 'tren', 'zug', 'treno', '火车', 'huoche'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '✈️', portuguese: 'Avião', english: 'Airplane', spanish: 'Avión',
-    french: 'Avion', german: 'Flugzeug', italian: 'Aereo',
-    chinese: '飞机',
-    aliases: ['aviao', 'airplane', 'plane', 'avion', 'flugzeug', 'aereo', '飞机', 'feiji'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '🚢', portuguese: 'Navio', english: 'Ship', spanish: 'Barco',
-    french: 'Bateau', german: 'Schiff', italian: 'Nave',
-    chinese: '船',
-    aliases: ['navio', 'ship', 'barco', 'bateau', 'schiff', 'nave', '船', 'chuan'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '📷', portuguese: 'Câmera', english: 'Camera', spanish: 'Cámara',
-    french: 'Appareil photo', german: 'Kamera', italian: 'Fotocamera',
-    chinese: '相机',
-    aliases: ['camera', 'câmera', 'camara', 'camera fotografica', 'appareil photo', 'kamera', 'fotocamera', '相机', 'xiangji'],
-  ),
-  _ObjectVocabularyEntry(
-    emoji: '📺', portuguese: 'Televisão', english: 'Television', spanish: 'Televisión',
-    french: 'Télévision', german: 'Fernseher', italian: 'Televisione',
-    chinese: '电视',
-    aliases: ['televisao', 'television', 'tv', 'televisor', 'fernseher', 'televisione', '电视', 'dianshi'],
-  ),
-];
-
-String _normalizeObjectName(String value) {
-  var normalized = value.trim().toLowerCase();
-  const replacements = {
-    'á': 'a', 'à': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a',
-    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-    'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
-    'ó': 'o', 'ò': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
-    'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
-    'ç': 'c', 'ñ': 'n', 'ß': 'ss', 'œ': 'oe', 'æ': 'ae',
-  };
-  replacements.forEach((accented, plain) {
-    normalized = normalized.replaceAll(accented, plain);
-  });
-  return normalized
-      .replaceAll(RegExp(r'[^a-z0-9\s\u4e00-\u9fff]'), ' ')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
-}
-
 // --- Ponte JS Interop ---
 @JS('initPoseDetector')
 external JSPromise<JSBoolean> _initPoseDetector();
@@ -341,6 +39,13 @@ external void _setSpeechCallback(JSFunction callback);
 
 @JS('playSound')
 external void _playSound(JSString soundPath);
+
+@JS('playSpeech')
+external void _playSpeech(
+  JSString soundPath,
+  JSFunction onProgress,
+  JSFunction onEnded,
+);
 
 @JS('window.open')
 external void _openUrl(JSString url, [JSString? target]);
@@ -381,10 +86,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   EyeEmotion _detectedEmotion = EyeEmotion.neutral;
   bool _isChatting = false;
   bool _isSpeaking = false;
+  double _speechProgress = 0;
   String _chatStatus = "";
-  final TextEditingController _objectController = TextEditingController();
-  String _objectLookupResult = "";
-  String _objectLookupError = "";
   Timer? _chatTimer;
   late AnimationController _micController;
   Offset _cursorLookAt = const Offset(0.5, 0.5);
@@ -411,167 +114,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void dispose() {
     _controller.dispose();
     _micController.dispose();
-    _objectController.dispose();
     _stopCamera();
     super.dispose();
-  }
-
-  void _lookupObjectLanguages() {
-    final query = _normalizeObjectName(_objectController.text);
-    if (query.isEmpty) {
-      setState(() {
-        _objectLookupError = "Digite o nome de um objeto para começar.";
-      });
-      return;
-    }
-
-    final match = _offlineObjectVocabulary.where(
-      (entry) => entry.aliases.any(
-        (alias) => _normalizeObjectName(alias) == query,
-      ),
-    );
-    final entry = match.isEmpty ? null : match.first;
-
-    setState(() {
-      _objectLookupResult = entry?.result ?? "";
-      _objectLookupError = entry == null
-          ? "Ainda não encontrei esse nome no catálogo offline. Tente outro nome para o objeto em português, inglês, espanhol, francês, alemão ou italiano."
-          : "";
-    });
-  }
-
-  Widget _buildObjectLanguageBox() {
-    final accent = const Color(0xFF55E6D0);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 580),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: const Color(0xFF07131F).withValues(alpha: 0.88),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: accent.withValues(alpha: 0.42)),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withValues(alpha: 0.12),
-              blurRadius: 28,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.language, color: accent, size: 23),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    "Um objeto, vários idiomas!",
-                    style: GoogleFonts.orbitron(
-                      color: accent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "Funciona offline! Digite um objeto em português, inglês, espanhol, francês, alemão, italiano ou chinês para ver o emoji e os nomes nesses idiomas.",
-              style: GoogleFonts.vt323(
-                color: Colors.white.withValues(alpha: 0.86),
-                fontSize: 18,
-                height: 1.25,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _objectController,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => _lookupObjectLanguages(),
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: "Ex.: maçã, apple, manzana, 苹果...",
-                      hintStyle: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.42),
-                        fontSize: 12,
-                      ),
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.06),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 13,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.12),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: accent),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 9),
-                SizedBox(
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: _lookupObjectLanguages,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: accent,
-                      foregroundColor: const Color(0xFF07131F),
-                      padding: const EdgeInsets.symmetric(horizontal: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Icon(Icons.arrow_forward_rounded, size: 20),
-                  ),
-                ),
-              ],
-            ),
-            if (_objectLookupError.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                _objectLookupError,
-                style: const TextStyle(color: Colors.orangeAccent, fontSize: 13),
-              ),
-            ],
-            if (_objectLookupResult.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: accent.withValues(alpha: 0.2)),
-                ),
-                child: SelectableText(
-                  _objectLookupResult,
-                  style: GoogleFonts.vt323(
-                    color: Colors.white,
-                    fontSize: 18,
-                    height: 1.3,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _setupPoseDetection() async {
@@ -605,6 +149,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _isChatting = true;
       _chatStatus = "ESTOU OUVINDO... FALE AGORA";
     });
+  }
+
+  void _playSpeechSound(String url) {
+    if (mounted) setState(() => _speechProgress = 0);
+    _playSpeech(
+      url.toJS,
+      ((JSNumber currentTime, JSNumber duration) {
+        final totalSeconds = duration.toDartDouble;
+        if (!mounted || !totalSeconds.isFinite || totalSeconds <= 0) return;
+        final progress = (currentTime.toDartDouble / totalSeconds)
+            .clamp(0.0, 1.0);
+        setState(() => _speechProgress = progress);
+      }).toJS,
+      (() {
+        if (mounted && _isSpeaking) {
+          setState(() {
+            _isSpeaking = false;
+            _speechProgress = 1;
+          });
+        }
+      }).toJS,
+    );
   }
 
   void _onVoiceCommandDetected(JSString text) async {
@@ -668,7 +234,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
         // Usa o seu endpoint de voz super natural do servidor
         final ttsUrl = "https://tertulianoshow-terlinet-eyes.hf.space/tts?text=${Uri.encodeComponent(aiMessage)}";
-        _playSound(ttsUrl.toJS);
+        _playSpeechSound(ttsUrl);
 
         // Estima o tempo de fala baseado no tamanho do texto
         final int speechDuration = math.max(2000, ((aiMessage as String).length * 90));
@@ -881,6 +447,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         lookAt: lookAt,
         detectedEmotion: _detectedEmotion,
         isSpeaking: _isSpeaking,
+        speechText: _chatStatus.startsWith("⚠️ ")
+            ? _chatStatus.substring(3)
+            : _chatStatus,
+        speechProgress: _speechProgress,
         onEyePoked: (bool isLeft) {
           // Toca imediatamente o áudio local de dor do robô!
           _playSound("assets/aiai.mpeg".toJS);
@@ -901,7 +471,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
           final ttsUrl = "https://tertulianoshow-terlinet-eyes.hf.space/tts?text=${Uri.encodeComponent(chosenLine)}";
           Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) _playSound(ttsUrl.toJS);
+            if (mounted) _playSpeechSound(ttsUrl);
           });
 
           final int speechDuration = math.max(2000, chosenLine.length * 90);
@@ -1028,8 +598,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             const SizedBox(height: 15),
                             Text("TOQUE PARA CONVERSAR",
                               style: GoogleFonts.orbitron(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                            const SizedBox(height: 22),
-                            _buildObjectLanguageBox(),
                           ],
                         ),
                       ),
@@ -2039,9 +1607,20 @@ class CyberEyes extends StatefulWidget {
   final Offset lookAt;
   final EyeEmotion? detectedEmotion;
   final bool isSpeaking;
+  final String speechText;
+  final double speechProgress;
   final VoidCallback? onPet;
   final Function(bool isLeft)? onEyePoked;
-  const CyberEyes({super.key, required this.lookAt, this.detectedEmotion, this.isSpeaking = false, this.onPet, this.onEyePoked});
+  const CyberEyes({
+    super.key,
+    required this.lookAt,
+    this.detectedEmotion,
+    this.isSpeaking = false,
+    this.speechText = '',
+    this.speechProgress = 0,
+    this.onPet,
+    this.onEyePoked,
+  });
 
   @override
   State<CyberEyes> createState() => _CyberEyesState();
@@ -2508,6 +2087,8 @@ class _CyberEyesState extends State<CyberEyes> with TickerProviderStateMixin {
             emotion: _currentEmotion,
             emotionController: _emotionController,
             isTalking: widget.isSpeaking,
+            speechText: widget.speechText,
+            speechProgress: widget.speechProgress,
             talkingProgress: _talkingController.value,
             pokedLeft: _pokedLeft,
             pokedRight: _pokedRight,
@@ -2525,6 +2106,8 @@ class CyberMouth extends StatelessWidget {
   final EyeEmotion emotion;
   final AnimationController emotionController;
   final bool isTalking;
+  final String speechText;
+  final double speechProgress;
   final double talkingProgress;
   final bool pokedLeft;
   final bool pokedRight;
@@ -2536,6 +2119,8 @@ class CyberMouth extends StatelessWidget {
     required this.emotion,
     required this.emotionController,
     this.isTalking = false,
+    this.speechText = '',
+    this.speechProgress = 0,
     this.talkingProgress = 0,
     this.pokedLeft = false,
     this.pokedRight = false,
@@ -2558,6 +2143,8 @@ class CyberMouth extends StatelessWidget {
             emotion: emotion,
             progress: emotionController.value,
             isTalking: isTalking,
+            speechText: speechText,
+            speechProgress: speechProgress,
             talkingProgress: talkingController?.value ?? talkingProgress,
             pokedLeft: pokedLeft,
             pokedRight: pokedRight,
@@ -2573,6 +2160,8 @@ class MouthPainter extends CustomPainter {
   final EyeEmotion emotion;
   final double progress;
   final bool isTalking;
+  final String speechText;
+  final double speechProgress;
   final double talkingProgress;
   final bool pokedLeft;
   final bool pokedRight;
@@ -2582,6 +2171,8 @@ class MouthPainter extends CustomPainter {
     required this.emotion,
     required this.progress,
     required this.isTalking,
+    required this.speechText,
+    required this.speechProgress,
     required this.talkingProgress,
     this.pokedLeft = false,
     this.pokedRight = false,
@@ -2623,26 +2214,16 @@ class MouthPainter extends CustomPainter {
 
     final path = Path();
 
-    // Lógica de FALA para demais emoções
+    // O texto e o progresso do áudio aproximam os visemas da fala sintetizada.
     if (isTalking) {
-      double mouthOpen = 10 + (15 * talkingProgress);
-      path.moveTo(centerX - 35, centerY - 5);
-      path.quadraticBezierTo(centerX, centerY + mouthOpen, centerX + 35, centerY - 5);
-      path.quadraticBezierTo(centerX, centerY - 5, centerX - 35, centerY - 5);
-
-      canvas.drawPath(path, cavityPaint);
-
-      // Dentes (Sempre visíveis ao falar)
-      final teethPath = Path();
-      teethPath.moveTo(centerX - 30, centerY - 4);
-      teethPath.quadraticBezierTo(centerX, centerY + 2, centerX + 30, centerY - 4);
-      teethPath.lineTo(centerX + 30, centerY - 8);
-      teethPath.lineTo(centerX - 30, centerY - 8);
-      teethPath.close();
-      canvas.save();
-      canvas.clipPath(path);
-      canvas.drawPath(teethPath, teethPaint);
-      canvas.restore();
+      _drawSpeechMouth(
+        canvas,
+        centerX,
+        centerY,
+        cavityPaint,
+        teethPaint,
+        themeColor,
+      );
       return;
     }
 
@@ -2721,6 +2302,148 @@ class MouthPainter extends CustomPainter {
         path.lineTo(centerX + 20, centerY);
         canvas.drawPath(path, strokePaint);
         break;
+    }
+  }
+
+  void _drawSpeechMouth(
+    Canvas canvas,
+    double centerX,
+    double centerY,
+    Paint cavityPaint,
+    Paint teethPaint,
+    Color themeColor,
+  ) {
+    final text = speechText.toLowerCase();
+    final double progress = speechProgress.clamp(0.0, 1.0);
+    final int index = text.isEmpty
+        ? 0
+        : (progress * text.length).floor().clamp(0, text.length - 1);
+    final character = text.isEmpty ? 'a' : text[index];
+    final double pulse = 0.35 + (0.65 * talkingProgress);
+
+    if ('mbp'.contains(character)) {
+      final lips = Path()
+        ..moveTo(centerX - 32, centerY)
+        ..quadraticBezierTo(centerX, centerY - 5 * pulse, centerX + 32, centerY)
+        ..quadraticBezierTo(centerX, centerY + 5 * pulse, centerX - 32, centerY);
+      final lipPaint = Paint()
+        ..color = themeColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.2
+        ..strokeCap = StrokeCap.round;
+      canvas.drawPath(
+        lips,
+        Paint()
+          ..color = themeColor.withValues(alpha: 0.45)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      );
+      canvas.drawPath(lips, lipPaint);
+      return;
+    }
+
+    final bool rounded = 'ou'.contains(character);
+    final bool wide = 'ei'.contains(character);
+    final bool pause = character.trim().isEmpty || ',.;:!?'.contains(character);
+    final bool teethForward = 'fv'.contains(character);
+    final double mouthWidth = pause
+        ? 18
+        : rounded
+            ? 24
+            : wide || teethForward
+                ? 58
+                : 46;
+    final double mouthHeight = pause
+        ? 2.5
+        : rounded
+            ? 12 + 10 * pulse
+            : wide
+                ? 5 + 6 * pulse
+                : teethForward
+                    ? 5 + 4 * pulse
+                    : 10 + 16 * pulse;
+    final mouthRect = Rect.fromCenter(
+      center: Offset(centerX, centerY + 1),
+      width: mouthWidth,
+      height: mouthHeight,
+    );
+    final mouthPath = Path();
+    if (pause) {
+      mouthPath.moveTo(centerX - mouthWidth / 2, centerY + 1);
+      mouthPath.quadraticBezierTo(
+        centerX,
+        centerY + 1 + mouthHeight,
+        centerX + mouthWidth / 2,
+        centerY + 1,
+      );
+    } else if (rounded) {
+      mouthPath.addOval(mouthRect);
+    } else {
+      mouthPath.moveTo(centerX - mouthWidth / 2, centerY - 2);
+      mouthPath.quadraticBezierTo(
+        centerX,
+        centerY + mouthHeight,
+        centerX + mouthWidth / 2,
+        centerY - 2,
+      );
+      mouthPath.quadraticBezierTo(
+        centerX,
+        centerY - 2 + mouthHeight * 0.2,
+        centerX - mouthWidth / 2,
+        centerY - 2,
+      );
+      mouthPath.close();
+    }
+
+    canvas.drawPath(
+      mouthPath,
+      Paint()
+        ..color = themeColor.withValues(alpha: 0.45)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 7
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+    canvas.drawPath(mouthPath, cavityPaint);
+    canvas.drawPath(
+      mouthPath,
+      Paint()
+        ..color = themeColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+
+    if (!pause && !rounded && !'mbp'.contains(character)) {
+      final teethPath = Path()
+        ..moveTo(centerX - mouthWidth * 0.38, centerY - 1)
+        ..quadraticBezierTo(
+          centerX,
+          centerY + 3,
+          centerX + mouthWidth * 0.38,
+          centerY - 1,
+        )
+        ..lineTo(centerX + mouthWidth * 0.38, centerY + 3)
+        ..quadraticBezierTo(
+          centerX,
+          centerY + 5,
+          centerX - mouthWidth * 0.38,
+          centerY + 3,
+        )
+        ..close();
+      canvas.save();
+      canvas.clipPath(mouthPath);
+      canvas.drawPath(teethPath, teethPaint);
+      canvas.restore();
+    }
+
+    if (teethForward) {
+      final lowerLip = Paint()
+        ..color = Colors.pinkAccent.withValues(alpha: 0.8)
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(
+        Offset(centerX - mouthWidth * 0.32, centerY + mouthHeight / 2),
+        Offset(centerX + mouthWidth * 0.32, centerY + mouthHeight / 2),
+        lowerLip,
+      );
     }
   }
 
